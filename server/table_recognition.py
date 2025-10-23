@@ -81,14 +81,9 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
     """
     results = []
     
-    # 初始化 OCR 引擎（調整參數以提高準確度）
+    # 初始化 OCR 引擎
     try:
-        # 使用更高的識別參數
-        ocr_engine = RapidOCR(
-            text_score=0.5,  # 降低文字置信度閾值，識別更多文字
-            use_angle_cls=True,  # 使用角度分類器
-            use_text_det=True  # 使用文字檢測
-        )
+        ocr_engine = RapidOCR()
     except Exception as e:
         return {
             "success": False,
@@ -110,9 +105,6 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
     for page_number, img_path in enumerate(image_paths, start=1):
         if not os.path.exists(img_path):
             continue
-        
-        # 圖片預處理：旋轉、增強對比度、去噪
-        img_path = preprocess_image(img_path)
             
         try:
             # 執行 OCR 識別
