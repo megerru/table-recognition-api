@@ -99,11 +99,9 @@ export function EditableTable({ initialData, tableIndex, confidence, onDataChang
     if (numbers.length === 0) return null;
     
     const sum = numbers.reduce((a, b) => a + b, 0);
-    const avg = sum / numbers.length;
-    const max = Math.max(...numbers);
-    const min = Math.min(...numbers);
+    const dividedBy105 = sum / 1.05;
     
-    return { sum, avg, max, min, count: numbers.length };
+    return { sum, dividedBy105, count: numbers.length };
   }, [getSelectedCells]);
 
   const stats = selection ? calculateStats() : null;
@@ -166,11 +164,9 @@ export function EditableTable({ initialData, tableIndex, confidence, onDataChang
               <Calculator className="w-4 h-4 text-primary" />
               <span className="text-sm font-medium">選取統計：</span>
             </div>
-            <Badge variant="secondary" data-testid="stat-count">計數：{stats.count}</Badge>
-            <Badge variant="secondary" data-testid="stat-sum">總和：{stats.sum.toFixed(2)}</Badge>
-            <Badge variant="secondary" data-testid="stat-avg">平均：{stats.avg.toFixed(2)}</Badge>
-            <Badge variant="secondary" data-testid="stat-max">最大：{stats.max.toFixed(2)}</Badge>
-            <Badge variant="secondary" data-testid="stat-min">最小：{stats.min.toFixed(2)}</Badge>
+            <Badge variant="secondary" data-testid="stat-count">總數量：{stats.count}</Badge>
+            <Badge variant="secondary" data-testid="stat-sum">總和：{stats.sum.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Badge>
+            <Badge variant="secondary" data-testid="stat-divided">除以1.05後為：{stats.dividedBy105.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Badge>
           </div>
         )}
         
@@ -201,7 +197,7 @@ export function EditableTable({ initialData, tableIndex, confidence, onDataChang
                     <td
                       key={cellIndex}
                       className={cn(
-                        "px-1 py-1 border-r border-border relative cursor-cell",
+                        "px-1 py-1 border-r border-border relative cursor-cell select-none",
                         isCellSelected(rowIndex, cellIndex) && "bg-primary/20",
                         editingCell?.row === rowIndex && editingCell?.col === cellIndex && "bg-background"
                       )}
