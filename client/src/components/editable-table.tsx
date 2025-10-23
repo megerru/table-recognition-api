@@ -98,8 +98,8 @@ export function EditableTable({ initialData, tableIndex, confidence, onDataChang
     
     if (numbers.length === 0) return null;
     
-    const sum = numbers.reduce((a, b) => a + b, 0);
-    const dividedBy105 = sum / 1.05;
+    const sum = Math.round(numbers.reduce((a, b) => a + b, 0));
+    const dividedBy105 = Math.round(sum / 1.05);
     
     return { sum, dividedBy105, count: numbers.length };
   }, [getSelectedCells]);
@@ -165,12 +165,12 @@ export function EditableTable({ initialData, tableIndex, confidence, onDataChang
               <span className="text-sm font-medium">選取統計：</span>
             </div>
             <Badge variant="secondary" data-testid="stat-count">總數量：{stats.count}</Badge>
-            <Badge variant="secondary" data-testid="stat-sum">總和：{stats.sum.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Badge>
-            <Badge variant="secondary" data-testid="stat-divided">除以1.05後為：{stats.dividedBy105.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Badge>
+            <Badge variant="secondary" data-testid="stat-sum">總和：{stats.sum.toLocaleString('zh-TW')}</Badge>
+            <Badge variant="secondary" data-testid="stat-divided">除以1.05後為：{stats.dividedBy105.toLocaleString('zh-TW')}</Badge>
           </div>
         )}
         
-        <div className="overflow-auto max-h-[600px] rounded-lg border border-border">
+        <div className="overflow-auto max-h-[800px] rounded-lg border border-border">
           <table className="w-full text-sm border-collapse">
             <thead className="bg-muted sticky top-0 z-10">
               <tr>

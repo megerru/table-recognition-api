@@ -37,22 +37,29 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
             共識別到 {tables.length} 個表格
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <Badge 
+            variant={editMode ? "default" : "outline"} 
+            className="text-sm px-3 py-1"
+            data-testid="badge-current-mode"
+          >
+            {editMode ? "📝 目前：編輯模式" : "👁️ 目前：檢視模式"}
+          </Badge>
           <Button
             size="sm"
-            variant={editMode ? "default" : "outline"}
+            variant="outline"
             onClick={() => setEditMode(!editMode)}
             data-testid="button-toggle-edit-mode"
           >
             {editMode ? (
               <>
-                <Edit className="w-4 h-4 mr-2" />
-                編輯模式
+                <Eye className="w-4 h-4 mr-2" />
+                切換到檢視模式
               </>
             ) : (
               <>
-                <Eye className="w-4 h-4 mr-2" />
-                檢視模式
+                <Edit className="w-4 h-4 mr-2" />
+                切換到編輯模式
               </>
             )}
           </Button>

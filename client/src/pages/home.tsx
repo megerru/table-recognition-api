@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ProcessingStatus, TableRecognitionResult } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { convertTableToTraditional } from "@/lib/convert";
 import { Table, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -46,7 +47,13 @@ export default function Home() {
     },
     onSuccess: (data) => {
       if (data.success && data.tables) {
-        setRecognizedTables(data.tables);
+        // 將簡體中文轉換為繁體中文
+        const convertedTables = data.tables.map(table => ({
+          ...table,
+          rows: convertTableToTraditional(table.rows)
+        }));
+        
+        setRecognizedTables(convertedTables);
         setCurrentFilename(data.filename);
         setProcessingStatus({
           status: "completed",
