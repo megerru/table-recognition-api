@@ -62,43 +62,44 @@ def recognize_tables_from_images(image_paths):
             # 執行 OCR 識別
             ocr_result, _ = ocr_engine(img_path)
             if not ocr_result:
-                # 如果 OCR 沒有結果，使用內部 OCR
                 ocr_result = None
             
             # 先嘗試使用無線表格識別
             try:
-                lineless_result = lineless_engine(img_path, ocr_result) if ocr_result else lineless_engine(img_path)
+                lineless_result = lineless_engine(img_path, ocr_result)
                 
-                if lineless_result and len(lineless_result) > 0:
+                # 檢查是否識別到表格（pred_html 不為空）
+                if lineless_result and lineless_result.pred_html and '<table>' in lineless_result.pred_html:
                     # 無線表格識別成功
-                    for table_html, table_cell_bboxes, elapse in lineless_result:
-                        # 將 HTML 轉換為二維數組
-                        rows = parse_html_table(table_html)
-                        
+                    rows = parse_html_table(lineless_result.pred_html)
+                    
+                    if rows and len(rows) > 0 and any(len(row) > 0 for row in rows):
                         results.append({
                             "tableIndex": table_index,
-                            "html": table_html,
+                            "html": lineless_result.pred_html,
                             "rows": rows,
-                            "confidence": 0.9,  # 無線表格默認置信度
+                            "confidence": 0.9,
                             "type": "lineless"
                         })
                         table_index += 1
-                else:
-                    # 嘗試有線表格識別
-                    wired_result = wired_engine(img_path, ocr_result) if ocr_result else wired_engine(img_path)
+                        continue
+                
+                # 如果無線表格沒有結果，嘗試有線表格識別
+                wired_result = wired_engine(img_path, ocr_result)
+                
+                if wired_result and wired_result.pred_html and '<table>' in wired_result.pred_html:
+                    rows = parse_html_table(wired_result.pred_html)
                     
-                    if wired_result and len(wired_result) > 0:
-                        for table_html, table_cell_bboxes, elapse in wired_result:
-                            rows = parse_html_table(table_html)
-                            
-                            results.append({
-                                "tableIndex": table_index,
-                                "html": table_html,
-                                "rows": rows,
-                                "confidence": 0.85,  # 有線表格默認置信度
-                                "type": "wired"
-                            })
-                            table_index += 1
+                    if rows and len(rows) > 0 and any(len(row) > 0 for row in rows):
+                        results.append({
+                            "tableIndex": table_index,
+                            "html": wired_result.pred_html,
+                            "rows": rows,
+                            "confidence": 0.85,
+                            "type": "wired"
+                        })
+                        table_index += 1
+                        
             except Exception as table_err:
                 # 記錄表格識別錯誤但繼續處理
                 print(f"表格識別錯誤 {img_path}: {str(table_err)}", file=sys.stderr)
