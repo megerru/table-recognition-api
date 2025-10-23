@@ -8,8 +8,31 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
+// 配置 multer 儲存，保留檔案副檔名
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    // 從原始檔名獲取副檔名，如果沒有則根據 MIME 類型推斷
+    let ext = path.extname(file.originalname);
+    if (!ext) {
+      // 根據 MIME 類型推斷副檔名
+      const mimeToExt: { [key: string]: string } = {
+        'application/pdf': '.pdf',
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/jpg': '.jpg'
+      };
+      ext = mimeToExt[file.mimetype] || '.png';
+    }
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  }
+});
+
 const upload = multer({
-  dest: "uploads/",
+  storage: storage,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB
   },
@@ -107,7 +130,10 @@ async function recognizeTables(imagePaths: string[]): Promise<TableRecognitionRe
 }
 
 async function cropImage(imagePath: string, x: number, y: number, width: number, height: number): Promise<string> {
-  const outputPath = imagePath.replace(/\.png$/, `_crop_${Date.now()}.png`);
+  // 獲取副檔名，如果沒有則默認為 .png
+  const ext = path.extname(imagePath) || '.png';
+  const basePath = imagePath.replace(ext, '');
+  const outputPath = `${basePath}_crop_${Date.now()}${ext}`;
   
   try {
     // 使用 Python + Pillow 裁切圖片
