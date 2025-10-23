@@ -8,11 +8,13 @@ import sys
 import json
 import os
 from pathlib import Path
+from typing import Any, List, Optional
 
 try:
     from lineless_table_rec.main import LinelessTableRecognition, LinelessTableInput
     from wired_table_rec.main import WiredTableRecognition, WiredTableInput
     from rapidocr_onnxruntime import RapidOCR
+    from PIL import Image
 except ImportError as e:
     print(json.dumps({
         "success": False,
@@ -21,7 +23,38 @@ except ImportError as e:
     sys.exit(1)
 
 
-def recognize_tables_from_images(image_paths):
+def auto_rotate_image(img_path: str) -> str:
+    """
+    自動檢測並旋轉圖片到正確方向
+    
+    Args:
+        img_path: 圖片路徑
+        
+    Returns:
+        處理後的圖片路徑（如果需要旋轉，返回新路徑；否則返回原路徑）
+    """
+    try:
+        img = Image.open(img_path)
+        width, height = img.size
+        
+        # 如果寬度大於高度，圖片是橫向的，需要旋轉 90 度
+        if width > height * 1.2:  # 1.2 是容錯係數
+            # 旋轉 90 度（逆時針）
+            rotated_img = img.rotate(90, expand=True)
+            
+            # 保存旋轉後的圖片（覆蓋原文件）
+            rotated_img.save(img_path)
+            print(f"圖片已自動旋轉: {img_path} (原尺寸: {width}x{height})", file=sys.stderr)
+            
+            return img_path
+        
+        return img_path
+    except Exception as e:
+        print(f"圖片旋轉失敗 {img_path}: {str(e)}", file=sys.stderr)
+        return img_path
+
+
+def recognize_tables_from_images(image_paths: List[str]) -> dict:
     """
     從圖片中識別表格
     
@@ -62,9 +95,13 @@ def recognize_tables_from_images(image_paths):
     for page_number, img_path in enumerate(image_paths, start=1):
         if not os.path.exists(img_path):
             continue
+        
+        # 自動旋轉圖片（如果是橫向的）
+        img_path = auto_rotate_image(img_path)
             
         try:
             # 執行 OCR 識別
+            ocr_result: Any
             ocr_result, _ = ocr_engine(img_path)
             if not ocr_result:
                 ocr_result = None
@@ -147,7 +184,7 @@ def recognize_tables_from_images(image_paths):
     }
 
 
-def clean_table_data(rows):
+def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
     """
     清理表格數據中的常見錯誤
     
@@ -195,7 +232,7 @@ def clean_table_data(rows):
     return cleaned_rows
 
 
-def parse_html_table(html):
+def parse_html_table(html: str) -> List[List[str]]:
     """
     解析 HTML 表格為二維陣列
     
