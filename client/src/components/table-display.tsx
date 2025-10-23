@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { TableRecognitionResult } from "@shared/schema";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Edit, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EditableTable } from "@/components/editable-table";
 
 interface TableDisplayProps {
   tables: TableRecognitionResult[];
@@ -12,6 +15,14 @@ interface TableDisplayProps {
 
 export function TableDisplay({ tables, className }: TableDisplayProps) {
   const [activeTab, setActiveTab] = useState("0");
+  const [editMode, setEditMode] = useState(true);
+  const [editedTables, setEditedTables] = useState<string[][][]>(tables.map(t => t.rows));
+
+  const handleTableDataChange = (index: number, newData: string[][]) => {
+    const updated = [...editedTables];
+    updated[index] = newData;
+    setEditedTables(updated);
+  };
 
   if (!tables || tables.length === 0) {
     return null;
@@ -26,40 +37,97 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
             共識別到 {tables.length} 個表格
           </p>
         </div>
-        <Badge variant="secondary" className="text-sm" data-testid="badge-count">
-          {tables.length} 個表格
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={editMode ? "default" : "outline"}
+            onClick={() => setEditMode(!editMode)}
+            data-testid="button-toggle-edit-mode"
+          >
+            {editMode ? (
+              <>
+                <Edit className="w-4 h-4 mr-2" />
+                編輯模式
+              </>
+            ) : (
+              <>
+                <Eye className="w-4 h-4 mr-2" />
+                檢視模式
+              </>
+            )}
+          </Button>
+          <Badge variant="secondary" className="text-sm" data-testid="badge-count">
+            {tables.length} 個表格
+          </Badge>
+        </div>
       </div>
 
-      {tables.length === 1 ? (
-        <TableCard table={tables[0]} index={0} />
-      ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-2 bg-muted/50 p-2">
-            {tables.map((_, index) => (
-              <TabsTrigger
-                key={index}
-                value={index.toString()}
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                data-testid={`tab-table-${index}`}
-              >
-                表格 {index + 1}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+      {editMode ? (
+        tables.length === 1 ? (
+          <EditableTable
+            initialData={editedTables[0]}
+            tableIndex={0}
+            confidence={tables[0].confidence}
+            onDataChange={(data) => handleTableDataChange(0, data)}
+          />
+        ) : (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-2 bg-muted/50 p-2">
+              {tables.map((_, index) => (
+                <TabsTrigger
+                  key={index}
+                  value={index.toString()}
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  data-testid={`tab-table-${index}`}
+                >
+                  表格 {index + 1}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-          {tables.map((table, index) => (
-            <TabsContent key={index} value={index.toString()} className="mt-4">
-              <TableCard table={table} index={index} />
-            </TabsContent>
-          ))}
-        </Tabs>
+            {tables.map((table, index) => (
+              <TabsContent key={index} value={index.toString()} className="mt-4">
+                <EditableTable
+                  initialData={editedTables[index]}
+                  tableIndex={index}
+                  confidence={table.confidence}
+                  onDataChange={(data) => handleTableDataChange(index, data)}
+                />
+              </TabsContent>
+            ))}
+          </Tabs>
+        )
+      ) : (
+        tables.length === 1 ? (
+          <ReadOnlyTable table={{...tables[0], rows: editedTables[0]}} index={0} />
+        ) : (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-2 bg-muted/50 p-2">
+              {tables.map((_, index) => (
+                <TabsTrigger
+                  key={index}
+                  value={index.toString()}
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  data-testid={`tab-table-${index}`}
+                >
+                  表格 {index + 1}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            {tables.map((table, index) => (
+              <TabsContent key={index} value={index.toString()} className="mt-4">
+                <ReadOnlyTable table={{...table, rows: editedTables[index]}} index={index} />
+              </TabsContent>
+            ))}
+          </Tabs>
+        )
       )}
     </div>
   );
 }
 
-function TableCard({ table, index }: { table: TableRecognitionResult; index: number }) {
+function ReadOnlyTable({ table, index }: { table: TableRecognitionResult; index: number }) {
   return (
     <Card data-testid={`card-table-${index}`}>
       <CardHeader>

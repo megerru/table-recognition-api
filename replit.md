@@ -3,12 +3,16 @@
 ## 專案概述
 基於 TableStructureRec 的 PDF 表格識別網頁應用，允許用戶上傳 PDF 檔案後自動識別並提取其中的表格。使用 Fullstack JavaScript 技術棧（React + Express），後端調用 Python 的 TableStructureRec 庫進行表格識別。所有界面使用繁體中文。
 
-## 最近變更 (2025-10-22)
-- ✅ 完成設計系統配置，採用 Material Design 3 風格
-- ✅ 配置 Noto Sans SC 中文字體和深色/淺色主題切換
-- ✅ 建立完整前端界面：上傳、處理進度、表格展示、匯出功能
-- ✅ 實現後端 API：檔案上傳、PDF 轉圖片、TableStructureRec 調用、檔案清理
-- ✅ 前後端整合完成，通過 Architect 審查
+## 最近變更 (2025-10-23)
+- ✅ 修復 Python 表格識別腳本初始化問題（正確配置 LinelessTableInput 和 WiredTableInput）
+- ✅ 安裝系統依賴（mesa, libglvnd）解決 OpenGL 庫缺失問題
+- ✅ 實現可編輯表格功能：
+  - 雙擊儲存格進行編輯
+  - 拖動滑鼠選取多個儲存格（範圍選取）
+  - 自動計算選取範圍的統計數據（總和、平均、最大、最小、計數）
+  - 複製選取範圍到剪貼板
+  - 編輯/檢視模式切換
+- ✅ 完整支援各種 PDF 內容（純文字表格、掃描圖片、混合內容）
 
 ## 用戶偏好
 - 界面語言：繁體中文（Traditional Chinese）
@@ -28,15 +32,22 @@
 
 ### 核心功能
 1. **檔案上傳**: 支援拖放和點擊上傳 PDF 檔案（最大 50MB）
-2. **表格識別**: 自動識別 PDF 中的所有表格，支援有線和無線表格
-3. **結果展示**: 多表格標籤切換，表格預覽
-4. **資料匯出**: 支援 CSV 和 HTML 格式下載
+2. **表格識別**: 自動識別 PDF 中的所有表格，支援有線和無線表格，處理各種PDF內容（純文字、掃描圖片、混合內容）
+3. **可編輯表格**: 
+   - 雙擊儲存格進行即時編輯
+   - Excel 風格的範圍選取（拖動選取多個儲存格）
+   - 即時統計計算（總和、平均、最大、最小、計數）
+   - 編輯/檢視模式切換
+   - 複製選取範圍
+4. **結果展示**: 多表格標籤切換，表格預覽
+5. **資料匯出**: 支援 CSV 和 HTML 格式下載（包含編輯後的數據）
 
 ### 主要組件
 - `client/src/pages/home.tsx`: 主頁面，整合所有功能
 - `client/src/components/upload-zone.tsx`: 檔案上傳區域（拖放支援）
 - `client/src/components/processing-indicator.tsx`: 處理進度指示器
-- `client/src/components/table-display.tsx`: 表格展示組件（標籤切換）
+- `client/src/components/table-display.tsx`: 表格展示組件（標籤切換、編輯/檢視模式）
+- `client/src/components/editable-table.tsx`: 可編輯表格（範圍選取、統計計算）
 - `client/src/components/export-buttons.tsx`: 匯出按鈕
 - `client/src/components/theme-toggle.tsx`: 深色/淺色模式切換
 

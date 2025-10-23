@@ -10,8 +10,8 @@ import os
 from pathlib import Path
 
 try:
-    from lineless_table_rec import LinelessTableRecognition
-    from wired_table_rec import WiredTableRecognition
+    from lineless_table_rec.main import LinelessTableRecognition, LinelessTableInput
+    from wired_table_rec.main import WiredTableRecognition, WiredTableInput
     from rapidocr_onnxruntime import RapidOCR
 except ImportError as e:
     print(json.dumps({
@@ -44,8 +44,8 @@ def recognize_tables_from_images(image_paths):
     
     # 初始化表格识别引擎
     try:
-        lineless_engine = LinelessTableRecognition()
-        wired_engine = WiredTableRecognition()
+        lineless_engine = LinelessTableRecognition(LinelessTableInput())
+        wired_engine = WiredTableRecognition(WiredTableInput())
     except Exception as e:
         return {
             "success": False,
@@ -59,42 +59,54 @@ def recognize_tables_from_images(image_paths):
             continue
             
         try:
-            # 先尝试使用无线表格识别
-            lineless_result = lineless_engine(img_path, ocr_engine)
+            # 執行 OCR 識別
+            ocr_result, _ = ocr_engine(img_path)
+            if not ocr_result:
+                # 如果 OCR 沒有結果，使用內部 OCR
+                ocr_result = None
             
-            if lineless_result and len(lineless_result) > 0:
-                # 无线表格识别成功
-                for table_html, table_cell_bboxes, elapse in lineless_result:
-                    # 将 HTML 转换为二维数组
-                    rows = parse_html_table(table_html)
-                    
-                    results.append({
-                        "tableIndex": table_index,
-                        "html": table_html,
-                        "rows": rows,
-                        "confidence": 0.9,  # 无线表格默认置信度
-                        "type": "lineless"
-                    })
-                    table_index += 1
-            else:
-                # 尝试有线表格识别
-                wired_result = wired_engine(img_path, ocr_engine)
+            # 先嘗試使用無線表格識別
+            try:
+                lineless_result = lineless_engine(img_path, ocr_result) if ocr_result else lineless_engine(img_path)
                 
-                if wired_result and len(wired_result) > 0:
-                    for table_html, table_cell_bboxes, elapse in wired_result:
+                if lineless_result and len(lineless_result) > 0:
+                    # 無線表格識別成功
+                    for table_html, table_cell_bboxes, elapse in lineless_result:
+                        # 將 HTML 轉換為二維數組
                         rows = parse_html_table(table_html)
                         
                         results.append({
                             "tableIndex": table_index,
                             "html": table_html,
                             "rows": rows,
-                            "confidence": 0.85,  # 有线表格默认置信度
-                            "type": "wired"
+                            "confidence": 0.9,  # 無線表格默認置信度
+                            "type": "lineless"
                         })
                         table_index += 1
+                else:
+                    # 嘗試有線表格識別
+                    wired_result = wired_engine(img_path, ocr_result) if ocr_result else wired_engine(img_path)
+                    
+                    if wired_result and len(wired_result) > 0:
+                        for table_html, table_cell_bboxes, elapse in wired_result:
+                            rows = parse_html_table(table_html)
+                            
+                            results.append({
+                                "tableIndex": table_index,
+                                "html": table_html,
+                                "rows": rows,
+                                "confidence": 0.85,  # 有線表格默認置信度
+                                "type": "wired"
+                            })
+                            table_index += 1
+            except Exception as table_err:
+                # 記錄表格識別錯誤但繼續處理
+                print(f"表格識別錯誤 {img_path}: {str(table_err)}", file=sys.stderr)
+                continue
                         
         except Exception as e:
-            # 记录错误但继续处理其他图片
+            # 記錄 OCR 錯誤但繼續處理其他圖片
+            print(f"OCR 錯誤 {img_path}: {str(e)}", file=sys.stderr)
             continue
     
     return {
