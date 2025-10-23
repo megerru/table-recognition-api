@@ -1,4 +1,4 @@
-import OpenCC from 'opencc-js';
+import * as OpenCC from 'opencc-js';
 
 // 初始化簡體轉繁體轉換器
 const converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
