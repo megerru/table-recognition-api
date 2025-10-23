@@ -23,34 +23,49 @@ except ImportError as e:
     sys.exit(1)
 
 
-def auto_rotate_image(img_path: str) -> str:
+def preprocess_image(img_path: str) -> str:
     """
-    自動檢測並旋轉圖片到正確方向
+    圖片預處理：自動旋轉、增強對比度、去噪
     
     Args:
         img_path: 圖片路徑
         
     Returns:
-        處理後的圖片路徑（如果需要旋轉，返回新路徑；否則返回原路徑）
+        處理後的圖片路徑
     """
     try:
+        from PIL import ImageEnhance, ImageFilter
+        
         img = Image.open(img_path)
         width, height = img.size
         
-        # 如果寬度大於高度，圖片是橫向的，需要旋轉 90 度
+        # 1. 如果寬度大於高度，圖片是橫向的，需要旋轉 90 度
         if width > height * 1.2:  # 1.2 是容錯係數
-            # 旋轉 90 度（逆時針）
-            rotated_img = img.rotate(90, expand=True)
-            
-            # 保存旋轉後的圖片（覆蓋原文件）
-            rotated_img.save(img_path)
+            img = img.rotate(90, expand=True)
             print(f"圖片已自動旋轉: {img_path} (原尺寸: {width}x{height})", file=sys.stderr)
-            
-            return img_path
+        
+        # 2. 轉換為 RGB 模式（如果是 RGBA 或其他模式）
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # 3. 增強對比度（提高文字清晰度）
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(1.5)  # 增強 50%
+        
+        # 4. 銳化處理（讓邊緣更清晰）
+        enhancer = ImageEnhance.Sharpness(img)
+        img = enhancer.enhance(1.3)  # 銳化 30%
+        
+        # 5. 輕微去噪（使用中值濾波）
+        # img = img.filter(ImageFilter.MedianFilter(size=3))
+        
+        # 保存處理後的圖片（覆蓋原文件）
+        img.save(img_path, quality=95)
+        print(f"圖片預處理完成: {img_path}", file=sys.stderr)
         
         return img_path
     except Exception as e:
-        print(f"圖片旋轉失敗 {img_path}: {str(e)}", file=sys.stderr)
+        print(f"圖片預處理失敗 {img_path}: {str(e)}", file=sys.stderr)
         return img_path
 
 
@@ -96,8 +111,8 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
         if not os.path.exists(img_path):
             continue
         
-        # 自動旋轉圖片（如果是橫向的）
-        img_path = auto_rotate_image(img_path)
+        # 圖片預處理：旋轉、增強對比度、去噪
+        img_path = preprocess_image(img_path)
             
         try:
             # 執行 OCR 識別

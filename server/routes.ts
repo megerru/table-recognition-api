@@ -45,7 +45,8 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
     await fs.mkdir(outputDir, { recursive: true });
     
     const outputPrefix = path.join(outputDir, "page");
-    const command = `pdftoppm -png "${pdfPath}" "${outputPrefix}"`;
+    // 使用 300 DPI 提高圖片解析度，對數據密集的表格效果更好
+    const command = `pdftoppm -png -r 300 "${pdfPath}" "${outputPrefix}"`;
     
     await execAsync(command);
     
