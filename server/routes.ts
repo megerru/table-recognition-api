@@ -78,7 +78,10 @@ async function recognizeTables(imagePaths: string[]): Promise<TableRecognitionRe
     });
     
     python.stderr.on("data", (data) => {
-      stderr += data.toString();
+      const stderrText = data.toString();
+      stderr += stderrText;
+      // 即時顯示處理信息（旋轉、預處理等）
+      console.log(stderrText.trim());
     });
     
     python.on("close", (code) => {
