@@ -125,10 +125,10 @@ export default function Home() {
         <div className="max-w-5xl mx-auto space-y-8">
           <div className="text-center space-y-3">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              智慧識別 PDF 中的表格
+              智慧識別表格內容
             </h2>
             <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
-              上傳您的 PDF 檔案，自動提取和識別其中的表格內容，支援匯出為 CSV 或 HTML 格式
+              上傳 PDF 或圖片檔案，自動提取和識別其中的表格內容，支援匯出為 CSV 或 HTML 格式
             </p>
           </div>
 
@@ -137,9 +137,9 @@ export default function Home() {
               <AlertCircle className="h-4 w-4 text-primary" />
               <AlertTitle>使用說明</AlertTitle>
               <AlertDescription className="text-sm space-y-2">
-                <p>1. 點擊或拖曳上傳 PDF 檔案</p>
+                <p>1. 點擊或拖曳上傳 PDF 或圖片檔案（PNG、JPG、JPEG）</p>
                 <p>2. 系統將自動識別檔案中的表格</p>
-                <p>3. 識別完成後可預覽表格並匯出</p>
+                <p>3. 識別完成後可預覽、編輯表格並匯出</p>
               </AlertDescription>
             </Alert>
           )}

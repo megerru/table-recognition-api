@@ -14,10 +14,17 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024, // 50MB
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === "application/pdf") {
+    const allowedMimeTypes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg"
+    ];
+    
+    if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("只支援 PDF 檔案"));
+      cb(new Error("只支援 PDF、PNG、JPG、JPEG 格式"));
     }
   },
 });
@@ -112,7 +119,8 @@ async function cleanupFiles(paths: string[]) {
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/upload", upload.single("file"), async (req, res) => {
     let imagePaths: string[] = [];
-    let pdfPath: string | null = null;
+    let uploadedFilePath: string | null = null;
+    let tempImageDir: string | null = null;
     
     try {
       if (!req.file) {
@@ -122,22 +130,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      pdfPath = req.file.path;
+      uploadedFilePath = req.file.path;
       const originalName = req.file.originalname;
+      const mimeType = req.file.mimetype;
       
-      console.log(`開始處理檔案: ${originalName}`);
+      console.log(`開始處理檔案: ${originalName}, 類型: ${mimeType}`);
       
-      imagePaths = await convertPdfToImages(pdfPath);
-      console.log(`PDF 轉換完成，共 ${imagePaths.length} 頁`);
-      
-      if (imagePaths.length === 0) {
-        throw new Error("PDF 轉換失敗，未生成圖片");
+      // 檢查是圖片還是 PDF
+      if (mimeType.startsWith("image/")) {
+        // 如果是圖片，直接使用
+        imagePaths = [uploadedFilePath];
+        console.log(`圖片檔案已準備好進行識別`);
+      } else if (mimeType === "application/pdf") {
+        // 如果是 PDF，轉換為圖片
+        imagePaths = await convertPdfToImages(uploadedFilePath);
+        tempImageDir = path.dirname(imagePaths[0]);
+        console.log(`PDF 轉換完成，共 ${imagePaths.length} 頁`);
+        
+        if (imagePaths.length === 0) {
+          throw new Error("PDF 轉換失敗，未生成圖片");
+        }
+      } else {
+        throw new Error("不支援的檔案格式");
       }
       
       const tables = await recognizeTables(imagePaths);
       console.log(`表格識別完成，共 ${tables.length} 個表格`);
       
-      await cleanupFiles([pdfPath, ...imagePaths.map(p => path.dirname(p))]);
+      // 清理檔案
+      const filesToClean = [uploadedFilePath];
+      if (tempImageDir) {
+        filesToClean.push(tempImageDir);
+      }
+      await cleanupFiles(filesToClean);
       
       return res.json({
         success: true,
@@ -149,12 +174,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("處理錯誤:", error);
       
-      if (pdfPath) {
-        await cleanupFiles([pdfPath]);
+      // 清理檔案
+      const filesToClean = [];
+      if (uploadedFilePath) {
+        filesToClean.push(uploadedFilePath);
       }
-      if (imagePaths.length > 0) {
-        await cleanupFiles(imagePaths.map(p => path.dirname(p)));
+      if (tempImageDir) {
+        filesToClean.push(tempImageDir);
       }
+      await cleanupFiles(filesToClean);
       
       return res.status(500).json({
         success: false,

@@ -33,10 +33,15 @@ export function UploadZone({ onFileSelect, isProcessing, className }: UploadZone
     if (isProcessing) return;
 
     const files = Array.from(e.dataTransfer.files);
-    const pdfFile = files.find(file => file.type === "application/pdf");
+    const validFile = files.find(file => 
+      file.type === "application/pdf" || 
+      file.type === "image/png" || 
+      file.type === "image/jpeg" || 
+      file.type === "image/jpg"
+    );
     
-    if (pdfFile) {
-      onFileSelect(pdfFile);
+    if (validFile) {
+      onFileSelect(validFile);
     }
   }, [isProcessing, onFileSelect]);
 
@@ -66,7 +71,7 @@ export function UploadZone({ onFileSelect, isProcessing, className }: UploadZone
       <input
         type="file"
         id="file-upload"
-        accept="application/pdf"
+        accept="application/pdf,image/png,image/jpeg,image/jpg"
         onChange={handleFileInput}
         disabled={isProcessing}
         className="hidden"
@@ -92,7 +97,7 @@ export function UploadZone({ onFileSelect, isProcessing, className }: UploadZone
         </div>
         
         <h3 className="text-xl font-semibold mb-2 text-foreground">
-          {isDragging ? "釋放檔案以上傳" : "上傳 PDF 檔案"}
+          {isDragging ? "釋放檔案以上傳" : "上傳 PDF 或圖片"}
         </h3>
         
         <p className="text-sm text-muted-foreground text-center mb-4">
@@ -104,7 +109,7 @@ export function UploadZone({ onFileSelect, isProcessing, className }: UploadZone
         <div className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <div className="h-1 w-1 rounded-full bg-muted-foreground" />
-            <span>支援格式：PDF</span>
+            <span>支援格式：PDF、PNG、JPG、JPEG</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-1 w-1 rounded-full bg-muted-foreground" />
