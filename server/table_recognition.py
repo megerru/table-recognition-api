@@ -33,9 +33,14 @@ def recognize_tables_from_images(image_paths):
     """
     results = []
     
-    # 初始化 OCR 引擎
+    # 初始化 OCR 引擎（調整參數以提高準確度）
     try:
-        ocr_engine = RapidOCR()
+        # 使用更高的識別參數
+        ocr_engine = RapidOCR(
+            text_score=0.5,  # 降低文字置信度閾值，識別更多文字
+            use_angle_cls=True,  # 使用角度分類器
+            use_text_det=True  # 使用文字檢測
+        )
     except Exception as e:
         return {
             "success": False,
@@ -64,43 +69,66 @@ def recognize_tables_from_images(image_paths):
             if not ocr_result:
                 ocr_result = None
             
-            # 先嘗試使用無線表格識別
+            # 同時嘗試有線和無線表格識別，選擇較好的結果
             try:
-                lineless_result = lineless_engine(img_path, ocr_result)
+                lineless_result = None
+                wired_result = None
                 
-                # 檢查是否識別到表格（pred_html 不為空）
+                # 嘗試無線表格識別
+                try:
+                    lineless_result = lineless_engine(img_path, ocr_result)
+                except Exception as e:
+                    print(f"無線表格識別失敗: {str(e)}", file=sys.stderr)
+                
+                # 嘗試有線表格識別
+                try:
+                    wired_result = wired_engine(img_path, ocr_result)
+                except Exception as e:
+                    print(f"有線表格識別失敗: {str(e)}", file=sys.stderr)
+                
+                # 解析兩種結果
+                lineless_rows = []
+                wired_rows = []
+                
                 if lineless_result and lineless_result.pred_html and '<table>' in lineless_result.pred_html:
-                    # 無線表格識別成功
-                    rows = parse_html_table(lineless_result.pred_html)
-                    
-                    if rows and len(rows) > 0 and any(len(row) > 0 for row in rows):
-                        results.append({
-                            "tableIndex": table_index,
-                            "pageNumber": page_number,
-                            "html": lineless_result.pred_html,
-                            "rows": rows,
-                            "confidence": 0.9,
-                            "type": "lineless"
-                        })
-                        table_index += 1
-                        continue
-                
-                # 如果無線表格沒有結果，嘗試有線表格識別
-                wired_result = wired_engine(img_path, ocr_result)
+                    lineless_rows = parse_html_table(lineless_result.pred_html)
                 
                 if wired_result and wired_result.pred_html and '<table>' in wired_result.pred_html:
-                    rows = parse_html_table(wired_result.pred_html)
+                    wired_rows = parse_html_table(wired_result.pred_html)
+                
+                # 選擇較好的結果（優先選擇有線表格，因為對於有邊框的表格效果更好）
+                best_result = None
+                best_rows = []
+                result_type = ""
+                confidence = 0.0
+                
+                # 如果有線表格有結果，優先使用
+                if wired_rows and len(wired_rows) > 0 and any(len(row) > 0 for row in wired_rows):
+                    best_result = wired_result
+                    best_rows = wired_rows
+                    result_type = "wired"
+                    confidence = 0.9
+                # 否則使用無線表格結果
+                elif lineless_rows and len(lineless_rows) > 0 and any(len(row) > 0 for row in lineless_rows):
+                    best_result = lineless_result
+                    best_rows = lineless_rows
+                    result_type = "lineless"
+                    confidence = 0.85
+                
+                if best_result and best_rows:
+                
+                    # 後處理：清理常見錯誤
+                    cleaned_rows = clean_table_data(best_rows)
                     
-                    if rows and len(rows) > 0 and any(len(row) > 0 for row in rows):
-                        results.append({
-                            "tableIndex": table_index,
-                            "pageNumber": page_number,
-                            "html": wired_result.pred_html,
-                            "rows": rows,
-                            "confidence": 0.85,
-                            "type": "wired"
-                        })
-                        table_index += 1
+                    results.append({
+                        "tableIndex": table_index,
+                        "pageNumber": page_number,
+                        "html": best_result.pred_html,
+                        "rows": cleaned_rows,
+                        "confidence": confidence,
+                        "type": result_type
+                    })
+                    table_index += 1
                         
             except Exception as table_err:
                 # 記錄表格識別錯誤但繼續處理
@@ -117,6 +145,54 @@ def recognize_tables_from_images(image_paths):
         "tables": results,
         "totalTables": len(results)
     }
+
+
+def clean_table_data(rows):
+    """
+    清理表格數據中的常見錯誤
+    
+    Args:
+        rows: 二維陣列表示的表格
+        
+    Returns:
+        清理後的表格數據
+    """
+    import re
+    
+    cleaned_rows = []
+    for row in rows:
+        cleaned_row = []
+        for cell in row:
+            if not cell or cell == '':
+                cleaned_row.append('-')
+                continue
+            
+            # 清理單元格內容
+            cleaned_cell = cell.strip()
+            
+            # 移除多餘的空白字符
+            cleaned_cell = re.sub(r'\s+', ' ', cleaned_cell)
+            
+            # 修正常見的數字粘連問題（例如：126,300126,300 -> 126,300）
+            # 檢測重複的數字模式
+            if re.match(r'^(\d{1,3}(?:,\d{3})*)\1+$', cleaned_cell):
+                # 如果是重複的數字，只保留一次
+                match = re.match(r'^(\d{1,3}(?:,\d{3})*).*', cleaned_cell)
+                if match:
+                    cleaned_cell = match.group(1)
+            
+            # 修正日期粘連問題（例如：2023/072023/08 -> 2023/07）
+            # 檢測重複的日期模式
+            if re.match(r'^(\d{4}/\d{2})\d{4}/\d{2}$', cleaned_cell):
+                match = re.match(r'^(\d{4}/\d{2}).*', cleaned_cell)
+                if match:
+                    cleaned_cell = match.group(1)
+            
+            cleaned_row.append(cleaned_cell if cleaned_cell else '-')
+        
+        cleaned_rows.append(cleaned_row)
+    
+    return cleaned_rows
 
 
 def parse_html_table(html):
