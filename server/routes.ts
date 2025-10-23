@@ -106,6 +106,23 @@ async function recognizeTables(imagePaths: string[]): Promise<TableRecognitionRe
   });
 }
 
+async function cropImage(imagePath: string, x: number, y: number, width: number, height: number): Promise<string> {
+  const outputPath = imagePath.replace(/\.png$/, `_crop_${Date.now()}.png`);
+  
+  try {
+    // 使用 Python + Pillow 裁切圖片
+    const pythonScript = path.join(process.cwd(), "server", "crop_image.py");
+    const command = `python3 "${pythonScript}" "${imagePath}" "${outputPath}" ${x} ${y} ${width} ${height}`;
+    
+    await execAsync(command);
+    
+    return outputPath;
+  } catch (error) {
+    console.error("圖片裁切失敗:", error);
+    throw new Error("圖片裁切失敗");
+  }
+}
+
 async function cleanupFiles(paths: string[]) {
   for (const filePath of paths) {
     try {
@@ -121,7 +138,180 @@ async function cleanupFiles(paths: string[]) {
   }
 }
 
+// 儲存上傳的文件信息（臨時存儲，實際應用中應使用 Redis 等）
+const uploadedFiles = new Map<string, { imagePaths: string[]; uploadedFilePath: string; tempImageDir: string | null }>();
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // 新的上傳 API：只轉換，不識別
+  app.post("/api/upload-preview", upload.single("file"), async (req, res) => {
+    let imagePaths: string[] = [];
+    let uploadedFilePath: string | null = null;
+    let tempImageDir: string | null = null;
+    
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "未上傳檔案",
+        });
+      }
+      
+      uploadedFilePath = req.file.path;
+      const originalName = req.file.originalname;
+      const mimeType = req.file.mimetype;
+      
+      console.log(`開始處理檔案: ${originalName}, 類型: ${mimeType}`);
+      
+      // 檢查是圖片還是 PDF
+      if (mimeType.startsWith("image/")) {
+        // 如果是圖片，直接使用
+        imagePaths = [uploadedFilePath];
+        console.log(`圖片檔案已準備好預覽`);
+      } else if (mimeType === "application/pdf") {
+        // 如果是 PDF，轉換為圖片
+        imagePaths = await convertPdfToImages(uploadedFilePath);
+        tempImageDir = path.dirname(imagePaths[0]);
+        console.log(`PDF 轉換完成，共 ${imagePaths.length} 頁`);
+        
+        if (imagePaths.length === 0) {
+          throw new Error("PDF 轉換失敗，未生成圖片");
+        }
+      } else {
+        throw new Error("不支援的檔案格式");
+      }
+      
+      // 生成唯一 ID
+      const sessionId = Date.now().toString();
+      
+      // 儲存文件信息
+      uploadedFiles.set(sessionId, {
+        imagePaths,
+        uploadedFilePath,
+        tempImageDir
+      });
+      
+      // 返回圖片 URL 供前端預覽
+      const imageUrls = imagePaths.map((imgPath, index) => ({
+        url: `/api/preview-image/${sessionId}/${index}`,
+        pageNumber: index + 1
+      }));
+      
+      return res.json({
+        success: true,
+        sessionId,
+        images: imageUrls,
+        filename: originalName,
+        message: `已轉換 ${imagePaths.length} 頁，請框選要識別的區域`,
+      });
+      
+    } catch (error) {
+      console.error("處理錯誤:", error);
+      
+      // 清理檔案
+      const filesToClean = [];
+      if (uploadedFilePath) {
+        filesToClean.push(uploadedFilePath);
+      }
+      if (tempImageDir) {
+        filesToClean.push(tempImageDir);
+      }
+      await cleanupFiles(filesToClean);
+      
+      return res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : "處理檔案時出錯",
+      });
+    }
+  });
+  
+  // 提供圖片預覽
+  app.get("/api/preview-image/:sessionId/:pageIndex", (req, res) => {
+    const { sessionId, pageIndex } = req.params;
+    const fileInfo = uploadedFiles.get(sessionId);
+    
+    if (!fileInfo) {
+      return res.status(404).json({
+        success: false,
+        message: "找不到上傳的檔案"
+      });
+    }
+    
+    const index = parseInt(pageIndex);
+    if (index < 0 || index >= fileInfo.imagePaths.length) {
+      return res.status(404).json({
+        success: false,
+        message: "頁碼不存在"
+      });
+    }
+    
+    const imagePath = fileInfo.imagePaths[index];
+    res.sendFile(path.resolve(imagePath));
+  });
+  
+  // 區域識別 API
+  app.post("/api/recognize-regions", async (req, res) => {
+    try {
+      const { sessionId, regions } = req.body;
+      
+      if (!sessionId || !regions || !Array.isArray(regions)) {
+        return res.status(400).json({
+          success: false,
+          message: "缺少必要參數"
+        });
+      }
+      
+      const fileInfo = uploadedFiles.get(sessionId);
+      if (!fileInfo) {
+        return res.status(404).json({
+          success: false,
+          message: "找不到上傳的檔案"
+        });
+      }
+      
+      // 裁切並識別每個區域
+      const results = [];
+      for (const region of regions) {
+        const { pageIndex, x, y, width, height } = region;
+        const imagePath = fileInfo.imagePaths[pageIndex];
+        
+        // 裁切圖片
+        const croppedPath = await cropImage(imagePath, x, y, width, height);
+        
+        // 識別裁切後的圖片
+        const tables = await recognizeTables([croppedPath]);
+        
+        results.push(...tables);
+        
+        // 清理裁切的圖片
+        await cleanupFiles([croppedPath]);
+      }
+      
+      // 清理原始檔案
+      const filesToClean = [fileInfo.uploadedFilePath];
+      if (fileInfo.tempImageDir) {
+        filesToClean.push(fileInfo.tempImageDir);
+      }
+      await cleanupFiles(filesToClean);
+      
+      // 從記憶體中移除
+      uploadedFiles.delete(sessionId);
+      
+      return res.json({
+        success: true,
+        tables: results,
+        message: `成功識別 ${results.length} 個表格`
+      });
+      
+    } catch (error) {
+      console.error("區域識別錯誤:", error);
+      return res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : "識別失敗"
+      });
+    }
+  });
+  
+  // 舊的上傳 API（保留兼容性）
   app.post("/api/upload", upload.single("file"), async (req, res) => {
     let imagePaths: string[] = [];
     let uploadedFilePath: string | null = null;
