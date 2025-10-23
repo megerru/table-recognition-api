@@ -34,14 +34,15 @@ export default function Home() {
         currentStep: "檔案上傳",
       });
 
-      const response = await apiRequest<{
+      const response = await apiRequest("POST", "/api/upload", formData);
+      const data = await response.json() as {
         success: boolean;
         tables: TableRecognitionResult[];
         filename: string;
         message?: string;
-      }>("POST", "/api/upload", formData);
+      };
 
-      return response;
+      return data;
     },
     onSuccess: (data) => {
       if (data.success && data.tables) {
