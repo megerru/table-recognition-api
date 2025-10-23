@@ -31,6 +31,7 @@ const upload = multer({
 
 interface TableRecognitionResult {
   tableIndex: number;
+  pageNumber?: number;
   html: string;
   rows: string[][];
   confidence?: number;

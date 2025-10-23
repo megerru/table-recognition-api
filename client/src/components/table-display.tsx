@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Eye } from "lucide-react";
+import { Edit, Eye, Layers, Grid3x3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditableTable } from "@/components/editable-table";
 
@@ -13,9 +13,12 @@ interface TableDisplayProps {
   className?: string;
 }
 
+type ViewMode = "tabs" | "all";
+
 export function TableDisplay({ tables, className }: TableDisplayProps) {
   const [activeTab, setActiveTab] = useState("0");
   const [editMode, setEditMode] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("tabs");
   const [editedTables, setEditedTables] = useState<string[][][]>(tables.map(t => t.rows));
 
   const handleTableDataChange = (index: number, newData: string[][]) => {
@@ -37,7 +40,7 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
             共識別到 {tables.length} 個表格
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Badge 
             variant={editMode ? "default" : "outline"} 
             className="text-sm px-3 py-1"
@@ -63,6 +66,26 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
               </>
             )}
           </Button>
+          {tables.length > 1 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setViewMode(viewMode === "tabs" ? "all" : "tabs")}
+              data-testid="button-toggle-view-mode"
+            >
+              {viewMode === "tabs" ? (
+                <>
+                  <Layers className="w-4 h-4 mr-2" />
+                  全部顯示
+                </>
+              ) : (
+                <>
+                  <Grid3x3 className="w-4 h-4 mr-2" />
+                  標籤切換
+                </>
+              )}
+            </Button>
+          )}
           <Badge variant="secondary" className="text-sm" data-testid="badge-count">
             {tables.length} 個表格
           </Badge>
@@ -71,16 +94,51 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
 
       {editMode ? (
         tables.length === 1 ? (
-          <EditableTable
-            initialData={editedTables[0]}
-            tableIndex={0}
-            confidence={tables[0].confidence}
-            onDataChange={(data) => handleTableDataChange(0, data)}
-          />
+          <div className="space-y-4">
+            {tables[0].pageNumber && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Badge variant="outline">第 {tables[0].pageNumber} 頁</Badge>
+              </div>
+            )}
+            <EditableTable
+              initialData={editedTables[0]}
+              tableIndex={0}
+              confidence={tables[0].confidence}
+              onDataChange={(data) => handleTableDataChange(0, data)}
+            />
+          </div>
+        ) : viewMode === "all" ? (
+          <div className="space-y-6">
+            {tables.map((table, index) => {
+              const prevTable = index > 0 ? tables[index - 1] : null;
+              const isNewPage = prevTable && table.pageNumber && prevTable.pageNumber !== table.pageNumber;
+              
+              return (
+                <div key={index}>
+                  {isNewPage && (
+                    <div className="flex items-center gap-3 my-8">
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                      <Badge variant="secondary" className="px-4 py-2">
+                        第 {table.pageNumber} 頁
+                      </Badge>
+                      <div className="flex-1 h-px bg-gradient-to-r from-border via-transparent to-transparent" />
+                    </div>
+                  )}
+                  <EditableTable
+                    initialData={editedTables[index]}
+                    tableIndex={index}
+                    confidence={table.confidence}
+                    pageNumber={table.pageNumber}
+                    onDataChange={(data) => handleTableDataChange(index, data)}
+                  />
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-2 bg-muted/50 p-2">
-              {tables.map((_, index) => (
+              {tables.map((table, index) => (
                 <TabsTrigger
                   key={index}
                   value={index.toString()}
@@ -88,6 +146,11 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
                   data-testid={`tab-table-${index}`}
                 >
                   表格 {index + 1}
+                  {table.pageNumber && (
+                    <span className="ml-2 opacity-70 text-xs">
+                      (第 {table.pageNumber} 頁)
+                    </span>
+                  )}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -98,6 +161,7 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
                   initialData={editedTables[index]}
                   tableIndex={index}
                   confidence={table.confidence}
+                  pageNumber={table.pageNumber}
                   onDataChange={(data) => handleTableDataChange(index, data)}
                 />
               </TabsContent>
@@ -107,10 +171,32 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
       ) : (
         tables.length === 1 ? (
           <ReadOnlyTable table={{...tables[0], rows: editedTables[0]}} index={0} />
+        ) : viewMode === "all" ? (
+          <div className="space-y-6">
+            {tables.map((table, index) => {
+              const prevTable = index > 0 ? tables[index - 1] : null;
+              const isNewPage = prevTable && table.pageNumber && prevTable.pageNumber !== table.pageNumber;
+              
+              return (
+                <div key={index}>
+                  {isNewPage && (
+                    <div className="flex items-center gap-3 my-8">
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                      <Badge variant="secondary" className="px-4 py-2">
+                        第 {table.pageNumber} 頁
+                      </Badge>
+                      <div className="flex-1 h-px bg-gradient-to-r from-border via-transparent to-transparent" />
+                    </div>
+                  )}
+                  <ReadOnlyTable table={{...table, rows: editedTables[index]}} index={index} />
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-2 bg-muted/50 p-2">
-              {tables.map((_, index) => (
+              {tables.map((table, index) => (
                 <TabsTrigger
                   key={index}
                   value={index.toString()}
@@ -118,6 +204,11 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
                   data-testid={`tab-table-${index}`}
                 >
                   表格 {index + 1}
+                  {table.pageNumber && (
+                    <span className="ml-2 opacity-70 text-xs">
+                      (第 {table.pageNumber} 頁)
+                    </span>
+                  )}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -140,7 +231,14 @@ function ReadOnlyTable({ table, index }: { table: TableRecognitionResult; index:
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <CardTitle>表格 {index + 1}</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              表格 {index + 1}
+              {table.pageNumber && (
+                <Badge variant="secondary" className="text-xs">
+                  第 {table.pageNumber} 頁
+                </Badge>
+              )}
+            </CardTitle>
             <CardDescription>
               {table.rows.length} 行 × {table.rows[0]?.length || 0} 列
             </CardDescription>

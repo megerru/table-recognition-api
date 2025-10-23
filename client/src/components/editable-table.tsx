@@ -18,10 +18,11 @@ interface EditableTableProps {
   initialData: string[][];
   tableIndex: number;
   confidence?: number;
+  pageNumber?: number;
   onDataChange?: (data: string[][]) => void;
 }
 
-export function EditableTable({ initialData, tableIndex, confidence, onDataChange }: EditableTableProps) {
+export function EditableTable({ initialData, tableIndex, confidence, pageNumber, onDataChange }: EditableTableProps) {
   const [data, setData] = useState<string[][]>(initialData);
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [selection, setSelection] = useState<CellSelection | null>(null);
@@ -133,6 +134,11 @@ export function EditableTable({ initialData, tableIndex, confidence, onDataChang
           <div>
             <CardTitle className="flex items-center gap-2">
               表格 {tableIndex + 1}
+              {pageNumber && (
+                <Badge variant="secondary" className="text-xs">
+                  第 {pageNumber} 頁
+                </Badge>
+              )}
               <Badge variant="outline" className="text-xs">
                 可編輯
               </Badge>

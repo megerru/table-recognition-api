@@ -54,7 +54,7 @@ def recognize_tables_from_images(image_paths):
     
     table_index = 0
     
-    for img_path in image_paths:
+    for page_number, img_path in enumerate(image_paths, start=1):
         if not os.path.exists(img_path):
             continue
             
@@ -76,6 +76,7 @@ def recognize_tables_from_images(image_paths):
                     if rows and len(rows) > 0 and any(len(row) > 0 for row in rows):
                         results.append({
                             "tableIndex": table_index,
+                            "pageNumber": page_number,
                             "html": lineless_result.pred_html,
                             "rows": rows,
                             "confidence": 0.9,
@@ -93,6 +94,7 @@ def recognize_tables_from_images(image_paths):
                     if rows and len(rows) > 0 and any(len(row) > 0 for row in rows):
                         results.append({
                             "tableIndex": table_index,
+                            "pageNumber": page_number,
                             "html": wired_result.pred_html,
                             "rows": rows,
                             "confidence": 0.85,

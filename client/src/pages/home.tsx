@@ -30,20 +30,103 @@ export default function Home() {
 
       setProcessingStatus({
         status: "uploading",
-        progress: 10,
+        progress: 0,
         message: "正在上傳檔案...",
-        currentStep: "檔案上傳",
+        currentStep: `檔案大小：${(file.size / 1024 / 1024).toFixed(2)} MB`,
       });
 
-      const response = await apiRequest("POST", "/api/upload", formData);
-      const data = await response.json() as {
+      let isCompleted = false;
+      let responseData: any = null;
+
+      // 使用 XMLHttpRequest 來追蹤上傳進度
+      return new Promise<{
         success: boolean;
         tables: TableRecognitionResult[];
         filename: string;
         message?: string;
-      };
+      }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // 追蹤上傳進度
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable && !isCompleted) {
+            const percentComplete = (e.loaded / e.total) * 30; // 上傳佔總進度的30%
+            setProcessingStatus({
+              status: "uploading",
+              progress: percentComplete,
+              message: `正在上傳檔案... (${(e.loaded / 1024 / 1024).toFixed(2)} MB / ${(e.total / 1024 / 1024).toFixed(2)} MB)`,
+              currentStep: "上傳中",
+            });
+          }
+        });
 
-      return data;
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              responseData = JSON.parse(xhr.responseText);
+              
+              // 上傳完成，開始模擬處理階段
+              if (!isCompleted) {
+                setProcessingStatus({
+                  status: "converting",
+                  progress: 35,
+                  message: "正在轉換檔案格式...",
+                  currentStep: "PDF 轉圖片",
+                });
+
+                setTimeout(() => {
+                  if (!isCompleted) {
+                    setProcessingStatus({
+                      status: "recognizing",
+                      progress: 60,
+                      message: "正在識別表格...",
+                      currentStep: "OCR 文字識別",
+                    });
+                  }
+                }, 300);
+
+                setTimeout(() => {
+                  if (!isCompleted) {
+                    setProcessingStatus({
+                      status: "recognizing",
+                      progress: 85,
+                      message: "正在解析表格結構...",
+                      currentStep: "表格結構分析",
+                    });
+                  }
+                }, 600);
+
+                // 在所有模擬階段完成後解析 Promise
+                setTimeout(() => {
+                  if (!isCompleted && responseData) {
+                    isCompleted = true;
+                    resolve(responseData);
+                  }
+                }, 900);
+              }
+            } catch (error) {
+              isCompleted = true;
+              reject(new Error("解析回應失敗"));
+            }
+          } else {
+            isCompleted = true;
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.message || "上傳失敗"));
+            } catch {
+              reject(new Error(`上傳失敗 (狀態碼: ${xhr.status})`));
+            }
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          isCompleted = true;
+          reject(new Error("網路錯誤，請檢查您的連線"));
+        });
+
+        xhr.open('POST', '/api/upload');
+        xhr.send(formData);
+      });
     },
     onSuccess: (data) => {
       if (data.success && data.tables) {

@@ -24,9 +24,11 @@ export type UploadedFile = typeof uploadedFiles.$inferSelect;
 
 export const tableRecognitionResultSchema = z.object({
   tableIndex: z.number(),
+  pageNumber: z.number().optional(),
   html: z.string(),
   rows: z.array(z.array(z.string())),
   confidence: z.number().optional(),
+  type: z.string().optional(),
 });
 
 export type TableRecognitionResult = z.infer<typeof tableRecognitionResultSchema>;
