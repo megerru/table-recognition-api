@@ -5,6 +5,7 @@ import { ProcessingIndicator } from "@/components/processing-indicator";
 import { TableDisplay } from "@/components/table-display";
 import { ExportButtons } from "@/components/export-buttons";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { RegionSelector } from "@/components/region-selector";
 import { ProcessingStatus, TableRecognitionResult } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -12,6 +13,16 @@ import { convertTableToTraditional } from "@/lib/convert";
 import { Table, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+interface ImageInfo {
+  url: string;
+  pageNumber: number;
+}
+
+interface PreviewData {
+  sessionId: string;
+  images: ImageInfo[];
+}
 
 export default function Home() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>({
@@ -21,8 +32,10 @@ export default function Home() {
   });
   const [recognizedTables, setRecognizedTables] = useState<TableRecognitionResult[]>([]);
   const [currentFilename, setCurrentFilename] = useState<string>("");
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const { toast } = useToast();
 
+  // 上傳並預覽
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -38,19 +51,18 @@ export default function Home() {
       let isCompleted = false;
       let responseData: any = null;
 
-      // 使用 XMLHttpRequest 來追蹤上傳進度
       return new Promise<{
         success: boolean;
-        tables: TableRecognitionResult[];
+        sessionId: string;
+        images: ImageInfo[];
         filename: string;
         message?: string;
       }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         
-        // 追蹤上傳進度
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable && !isCompleted) {
-            const percentComplete = (e.loaded / e.total) * 30; // 上傳佔總進度的30%
+            const percentComplete = (e.loaded / e.total) * 50; // 上傳佔總進度的50%
             setProcessingStatus({
               status: "uploading",
               progress: percentComplete,
@@ -65,44 +77,20 @@ export default function Home() {
             try {
               responseData = JSON.parse(xhr.responseText);
               
-              // 上傳完成，開始模擬處理階段
               if (!isCompleted) {
                 setProcessingStatus({
                   status: "converting",
-                  progress: 35,
+                  progress: 75,
                   message: "正在轉換檔案格式...",
                   currentStep: "PDF 轉圖片",
                 });
 
                 setTimeout(() => {
-                  if (!isCompleted) {
-                    setProcessingStatus({
-                      status: "recognizing",
-                      progress: 60,
-                      message: "正在識別表格...",
-                      currentStep: "OCR 文字識別",
-                    });
-                  }
-                }, 300);
-
-                setTimeout(() => {
-                  if (!isCompleted) {
-                    setProcessingStatus({
-                      status: "recognizing",
-                      progress: 85,
-                      message: "正在解析表格結構...",
-                      currentStep: "表格結構分析",
-                    });
-                  }
-                }, 600);
-
-                // 在所有模擬階段完成後解析 Promise
-                setTimeout(() => {
                   if (!isCompleted && responseData) {
                     isCompleted = true;
                     resolve(responseData);
                   }
-                }, 900);
+                }, 500);
               }
             } catch (error) {
               isCompleted = true;
@@ -124,31 +112,28 @@ export default function Home() {
           reject(new Error("網路錯誤，請檢查您的連線"));
         });
 
-        xhr.open('POST', '/api/upload');
+        xhr.open('POST', '/api/upload-preview');
         xhr.send(formData);
       });
     },
     onSuccess: (data) => {
-      if (data.success && data.tables) {
-        // 將簡體中文轉換為繁體中文
-        const convertedTables = data.tables.map(table => ({
-          ...table,
-          rows: convertTableToTraditional(table.rows)
-        }));
-        
-        setRecognizedTables(convertedTables);
+      if (data.success && data.images) {
+        setPreviewData({
+          sessionId: data.sessionId,
+          images: data.images
+        });
         setCurrentFilename(data.filename);
         setProcessingStatus({
           status: "completed",
           progress: 100,
-          message: `成功識別 ${data.tables.length} 個表格！`,
+          message: "檔案已準備好，請框選要識別的區域",
         });
         toast({
-          title: "識別完成",
-          description: `成功從 PDF 中識別出 ${data.tables.length} 個表格`,
+          title: "上傳成功",
+          description: `已載入 ${data.images.length} 頁，請框選要識別的表格區域`,
         });
       } else {
-        throw new Error(data.message || "識別失敗");
+        throw new Error(data.message || "上傳失敗");
       }
     },
     onError: (error: Error) => {
@@ -158,17 +143,84 @@ export default function Home() {
         message: error.message || "處理過程中出現錯誤，請重試",
       });
       toast({
-        title: "識別失敗",
+        title: "上傳失敗",
         description: error.message || "處理過程中出現錯誤",
         variant: "destructive",
       });
     },
   });
 
+  // 區域識別
+  const recognizeRegionsMutation = useMutation({
+    mutationFn: async (regions: any[]) => {
+      setProcessingStatus({
+        status: "recognizing",
+        progress: 50,
+        message: "正在識別框選的區域...",
+        currentStep: `識別 ${regions.length} 個區域`,
+      });
+
+      const response = await apiRequest("POST", "/api/recognize-regions", {
+        sessionId: previewData?.sessionId,
+        regions
+      });
+
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.success && data.tables) {
+        const convertedTables = data.tables.map((table: any) => ({
+          ...table,
+          rows: convertTableToTraditional(table.rows)
+        }));
+        
+        setRecognizedTables(convertedTables);
+        setPreviewData(null);
+        setProcessingStatus({
+          status: "completed",
+          progress: 100,
+          message: `成功識別 ${data.tables.length} 個表格！`,
+        });
+        toast({
+          title: "識別完成",
+          description: `成功識別 ${data.tables.length} 個表格`,
+        });
+      } else {
+        throw new Error(data.message || "識別失敗");
+      }
+    },
+    onError: (error: Error) => {
+      setProcessingStatus({
+        status: "error",
+        progress: 0,
+        message: error.message || "識別過程中出現錯誤，請重試",
+      });
+      toast({
+        title: "識別失敗",
+        description: error.message || "識別過程中出現錯誤",
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleFileSelect = (file: File) => {
     setRecognizedTables([]);
+    setPreviewData(null);
     setCurrentFilename(file.name);
     uploadMutation.mutate(file);
+  };
+
+  const handleRegionConfirm = (regions: any[]) => {
+    recognizeRegionsMutation.mutate(regions);
+  };
+
+  const handleRegionCancel = () => {
+    setPreviewData(null);
+    setProcessingStatus({
+      status: "idle",
+      progress: 0,
+      message: "",
+    });
   };
 
   const handleReset = () => {
@@ -178,12 +230,14 @@ export default function Home() {
       message: "",
     });
     setRecognizedTables([]);
+    setPreviewData(null);
     setCurrentFilename("");
   };
 
-  const isProcessing = processingStatus.status !== "idle" && 
+  const isProcessing = (processingStatus.status !== "idle" && 
                        processingStatus.status !== "completed" && 
-                       processingStatus.status !== "error";
+                       processingStatus.status !== "error") ||
+                       recognizeRegionsMutation.isPending;
 
   return (
     <div className="min-h-screen bg-background">
@@ -215,26 +269,40 @@ export default function Home() {
             </p>
           </div>
 
-          {processingStatus.status === "idle" && recognizedTables.length === 0 && (
+          {processingStatus.status === "idle" && recognizedTables.length === 0 && !previewData && (
             <Alert className="border-primary/50 bg-primary/5">
               <AlertCircle className="h-4 w-4 text-primary" />
               <AlertTitle>使用說明</AlertTitle>
               <AlertDescription className="text-sm space-y-2">
                 <p>1. 點擊或拖曳上傳 PDF 或圖片檔案（PNG、JPG、JPEG）</p>
-                <p>2. 系統將自動識別檔案中的表格</p>
-                <p>3. 識別完成後可預覽、編輯表格並匯出</p>
+                <p>2. 在圖片上框選要識別的表格區域</p>
+                <p>3. 確認後系統將識別框選區域的表格</p>
+                <p>4. 識別完成後可預覽、編輯表格並匯出</p>
               </AlertDescription>
             </Alert>
           )}
 
-          <UploadZone
-            onFileSelect={handleFileSelect}
-            isProcessing={isProcessing}
-          />
+          {!previewData && (
+            <UploadZone
+              onFileSelect={handleFileSelect}
+              isProcessing={isProcessing}
+            />
+          )}
 
-          {processingStatus.status !== "idle" && (
+          {processingStatus.status !== "idle" && processingStatus.status !== "completed" && (
             <div className="py-6">
               <ProcessingIndicator status={processingStatus} />
+            </div>
+          )}
+
+          {/* 框選區域界面 */}
+          {previewData && processingStatus.status === "completed" && !recognizeRegionsMutation.isPending && (
+            <div className="animate-in fade-in-50 duration-500">
+              <RegionSelector
+                images={previewData.images}
+                onConfirm={handleRegionConfirm}
+                onCancel={handleRegionCancel}
+              />
             </div>
           )}
 
