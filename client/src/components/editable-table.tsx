@@ -14,6 +14,14 @@ interface CellSelection {
   endCol: number;
 }
 
+interface SelectionRange {
+  id: string;
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+}
+
 interface EditableTableProps {
   initialData: string[][];
   tableIndex: number;
@@ -27,6 +35,8 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
+  const [selections, setSelections] = useState<SelectionRange[]>([]);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
   const { toast } = useToast();
 
   const handleCellChange = useCallback((row: number, col: number, value: string) => {
@@ -47,11 +57,16 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
     }
   }, []);
 
-  const handleMouseDown = useCallback((row: number, col: number) => {
+  const handleMouseDown = useCallback((row: number, col: number, event: React.MouseEvent) => {
     setIsSelecting(true);
     setSelection({ startRow: row, startCol: col, endRow: row, endCol: col });
     setEditingCell(null);
-  }, []);
+    
+    // 如果不是多選模式，清除之前的選取範圍
+    if (!multiSelectMode && !event.ctrlKey && !event.metaKey) {
+      setSelections([]);
+    }
+  }, [multiSelectMode]);
 
   const handleMouseEnter = useCallback((row: number, col: number) => {
     if (isSelecting && selection) {
@@ -65,7 +80,17 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
 
   const handleMouseUp = useCallback(() => {
     setIsSelecting(false);
-  }, []);
+    
+    // 當鬆開滑鼠時，如果是多選模式或按住 Ctrl/Cmd，將當前選取加入到 selections
+    if (selection && multiSelectMode) {
+      const newRange: SelectionRange = {
+        id: Date.now().toString(),
+        ...selection
+      };
+      setSelections(prev => [...prev, newRange]);
+      setSelection(null);
+    }
+  }, [selection, multiSelectMode]);
 
   useEffect(() => {
     document.addEventListener('mouseup', handleMouseUp);
@@ -73,23 +98,30 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
   }, [handleMouseUp]);
 
   const getSelectedCells = useCallback((): string[] => {
-    if (!selection) return [];
-    
-    const { startRow, startCol, endRow, endCol } = selection;
-    const minRow = Math.min(startRow, endRow);
-    const maxRow = Math.max(startRow, endRow);
-    const minCol = Math.min(startCol, endCol);
-    const maxCol = Math.max(startCol, endCol);
-    
     const cells: string[] = [];
-    for (let i = minRow; i <= maxRow; i++) {
-      for (let j = minCol; j <= maxCol; j++) {
-        const value = data[i]?.[j];
-        if (value) cells.push(value);
-      }
+    
+    // 收集所有選取範圍的儲存格
+    const allRanges = [...selections];
+    if (selection) {
+      allRanges.push(selection);
     }
+    
+    allRanges.forEach(range => {
+      const minRow = Math.min(range.startRow, range.endRow);
+      const maxRow = Math.max(range.startRow, range.endRow);
+      const minCol = Math.min(range.startCol, range.endCol);
+      const maxCol = Math.max(range.startCol, range.endCol);
+      
+      for (let i = minRow; i <= maxRow; i++) {
+        for (let j = minCol; j <= maxCol; j++) {
+          const value = data[i]?.[j];
+          if (value && value !== '-') cells.push(value);
+        }
+      }
+    });
+    
     return cells;
-  }, [selection, data]);
+  }, [selection, selections, data]);
 
   const calculateStats = useCallback(() => {
     const cells = getSelectedCells();
@@ -117,17 +149,35 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
     return { sum, dividedBy105, count: numbers.length };
   }, [getSelectedCells]);
 
-  const stats = selection ? calculateStats() : null;
+  const stats = (selection || selections.length > 0) ? calculateStats() : null;
+  
+  const clearSelections = useCallback(() => {
+    setSelections([]);
+    setSelection(null);
+  }, []);
 
   const isCellSelected = useCallback((row: number, col: number): boolean => {
-    if (!selection) return false;
-    const { startRow, startCol, endRow, endCol } = selection;
-    const minRow = Math.min(startRow, endRow);
-    const maxRow = Math.max(startRow, endRow);
-    const minCol = Math.min(startCol, endCol);
-    const maxCol = Math.max(startCol, endCol);
-    return row >= minRow && row <= maxRow && col >= minCol && col <= maxCol;
-  }, [selection]);
+    // 檢查當前選取範圍
+    if (selection) {
+      const { startRow, startCol, endRow, endCol } = selection;
+      const minRow = Math.min(startRow, endRow);
+      const maxRow = Math.max(startRow, endRow);
+      const minCol = Math.min(startCol, endCol);
+      const maxCol = Math.max(startCol, endCol);
+      if (row >= minRow && row <= maxRow && col >= minCol && col <= maxCol) {
+        return true;
+      }
+    }
+    
+    // 檢查之前的選取範圍
+    return selections.some(range => {
+      const minRow = Math.min(range.startRow, range.endRow);
+      const maxRow = Math.max(range.startRow, range.endRow);
+      const minCol = Math.min(range.startCol, range.endCol);
+      const maxCol = Math.max(range.startCol, range.endCol);
+      return row >= minRow && row <= maxRow && col >= minCol && col <= maxCol;
+    });
+  }, [selection, selections]);
 
   const copySelection = useCallback(() => {
     const cells = getSelectedCells();
@@ -160,8 +210,16 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
               {confidence !== undefined && ` • 置信度：${(confidence * 100).toFixed(1)}%`}
             </CardDescription>
           </div>
-          {selection && (
-            <div className="flex gap-2">
+          {(selection || selections.length > 0) && (
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant={multiSelectMode ? "default" : "outline"}
+                onClick={() => setMultiSelectMode(!multiSelectMode)}
+                data-testid="button-toggle-multiselect"
+              >
+                {multiSelectMode ? "✓ 多選模式" : "單選模式"}
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -170,6 +228,14 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
               >
                 <Copy className="w-4 h-4 mr-2" />
                 複製選取
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={clearSelections}
+                data-testid="button-clear-selections"
+              >
+                清除選取
               </Button>
             </div>
           )}
@@ -181,6 +247,11 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
             <div className="flex items-center gap-2">
               <Calculator className="w-5 h-5 text-primary" />
               <span className="text-base font-semibold text-primary">選取統計：</span>
+              {selections.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {selections.length + (selection ? 1 : 0)} 個範圍
+                </Badge>
+              )}
             </div>
             <Badge variant="default" className="text-sm px-3 py-1.5" data-testid="stat-count">
               總數量：{stats.count}
@@ -225,7 +296,7 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
                         isCellSelected(rowIndex, cellIndex) && "bg-primary/20",
                         editingCell?.row === rowIndex && editingCell?.col === cellIndex && "bg-background"
                       )}
-                      onMouseDown={() => handleMouseDown(rowIndex, cellIndex)}
+                      onMouseDown={(e) => handleMouseDown(rowIndex, cellIndex, e)}
                       onMouseEnter={() => handleMouseEnter(rowIndex, cellIndex)}
                       onDoubleClick={() => handleCellClick(rowIndex, cellIndex, true)}
                       data-testid={`cell-table-${tableIndex}-${rowIndex}-${cellIndex}`}
