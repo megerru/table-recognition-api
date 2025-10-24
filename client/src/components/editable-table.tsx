@@ -93,14 +93,26 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
 
   const calculateStats = useCallback(() => {
     const cells = getSelectedCells();
+    console.log("🔍 選取的儲存格:", cells);
+    
+    // 提取數字：移除 $, ¥, € 等貨幣符號和逗號
     const numbers = cells
-      .map(c => parseFloat(c.replace(/[,]/g, '')))
+      .map(c => {
+        // 移除貨幣符號和逗號
+        const cleaned = c.replace(/[\$¥€£₩,]/g, '').replace(/NT\$/g, '');
+        return parseFloat(cleaned);
+      })
       .filter(n => !isNaN(n));
+    
+    console.log("🔍 提取的數字:", numbers);
+    console.log("🔍 數字數量:", numbers.length);
     
     if (numbers.length === 0) return null;
     
     const sum = Math.round(numbers.reduce((a, b) => a + b, 0));
     const dividedBy105 = Math.round(sum / 1.05);
+    
+    console.log("🔍 統計結果:", { sum, dividedBy105, count: numbers.length });
     
     return { sum, dividedBy105, count: numbers.length };
   }, [getSelectedCells]);
