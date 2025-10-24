@@ -161,8 +161,21 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
                 
                 if best_result and best_rows:
                 
+                    # 調試：輸出原始 HTML
+                    print(f"\n=== 表格 {table_index} 調試信息 ===", file=sys.stderr)
+                    print(f"類型: {result_type}", file=sys.stderr)
+                    print(f"原始行數: {len(best_rows)}", file=sys.stderr)
+                    print(f"原始列數: {max(len(row) for row in best_rows) if best_rows else 0}", file=sys.stderr)
+                    print(f"HTML 長度: {len(best_result.pred_html)}", file=sys.stderr)
+                    print(f"HTML 預覽: {best_result.pred_html[:300]}", file=sys.stderr)
+                    print(f"原始數據（前3行）: {best_rows[:3]}", file=sys.stderr)
+                    
                     # 後處理：清理常見錯誤
                     cleaned_rows = clean_table_data(best_rows)
+                    
+                    print(f"清理後行數: {len(cleaned_rows)}", file=sys.stderr)
+                    print(f"清理後數據（前3行）: {cleaned_rows[:3]}", file=sys.stderr)
+                    print("=" * 50, file=sys.stderr)
                     
                     results.append({
                         "tableIndex": table_index,
