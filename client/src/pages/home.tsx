@@ -169,10 +169,18 @@ export default function Home() {
     },
     onSuccess: (data: any) => {
       if (data.success && data.tables) {
+        console.log("🔍 API 返回的表格數量:", data.tables.length);
+        console.log("🔍 第一個表格的原始數據:", data.tables[0]);
+        console.log("🔍 第一個表格的 rows:", data.tables[0]?.rows);
+        console.log("🔍 rows 的維度:", data.tables[0]?.rows?.length, "行 ×", data.tables[0]?.rows[0]?.length, "列");
+        
         const convertedTables = data.tables.map((table: any) => ({
           ...table,
           rows: convertTableToTraditional(table.rows)
         }));
+        
+        console.log("🔍 簡繁轉換後的第一個表格:", convertedTables[0]);
+        console.log("🔍 轉換後 rows 的維度:", convertedTables[0]?.rows?.length, "行 ×", convertedTables[0]?.rows[0]?.length, "列");
         
         setRecognizedTables(convertedTables);
         setPreviewData(null);
