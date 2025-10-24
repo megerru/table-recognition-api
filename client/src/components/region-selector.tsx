@@ -47,24 +47,42 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
 
     const handleImageLoad = () => {
       const canvas = canvasRef.current;
-      const container = containerRef.current;
-      if (!canvas || !container) return;
+      if (!canvas) return;
 
-      // 計算縮放比例
-      const containerWidth = container.clientWidth - 40; // 減去 padding
-      const scale = containerWidth / img.naturalWidth;
+      // 獲取圖片的實際顯示尺寸
+      const displayWidth = img.offsetWidth;
+      const displayHeight = img.offsetHeight;
+      
+      // 計算縮放比例（實際圖片尺寸 vs 顯示尺寸）
+      const scale = displayWidth / img.naturalWidth;
       setImageScale(scale);
 
-      // 設置 canvas 尺寸為顯示尺寸
-      canvas.width = img.naturalWidth * scale;
-      canvas.height = img.naturalHeight * scale;
+      // 設置 canvas 內部尺寸與圖片顯示尺寸完全一致
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+      
+      // 設置 canvas 的 CSS 尺寸也與圖片一致
+      canvas.style.width = `${displayWidth}px`;
+      canvas.style.height = `${displayHeight}px`;
 
       // 重繪所有區域
       redrawRegions();
     };
 
     img.addEventListener("load", handleImageLoad);
-    return () => img.removeEventListener("load", handleImageLoad);
+    
+    // 監聽窗口大小變化，重新調整 canvas
+    const handleResize = () => {
+      if (img.complete) {
+        handleImageLoad();
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    
+    return () => {
+      img.removeEventListener("load", handleImageLoad);
+      window.removeEventListener("resize", handleResize);
+    };
   }, [currentPage]);
 
   const redrawRegions = () => {
@@ -264,7 +282,6 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             className="absolute top-0 left-0 cursor-crosshair"
-            style={{ width: "100%", height: "auto" }}
             data-testid="canvas-selector"
           />
         </div>
