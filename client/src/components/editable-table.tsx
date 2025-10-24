@@ -165,14 +165,20 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
       </CardHeader>
       <CardContent className="space-y-4">
         {stats && (
-          <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg flex-wrap" data-testid="stats-bar">
+          <div className="flex items-center gap-4 p-4 bg-primary/10 border-2 border-primary/30 rounded-lg flex-wrap" data-testid="stats-bar">
             <div className="flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">選取統計：</span>
+              <Calculator className="w-5 h-5 text-primary" />
+              <span className="text-base font-semibold text-primary">選取統計：</span>
             </div>
-            <Badge variant="secondary" data-testid="stat-count">總數量：{stats.count}</Badge>
-            <Badge variant="secondary" data-testid="stat-sum">總和：{stats.sum.toLocaleString('zh-TW')}</Badge>
-            <Badge variant="secondary" data-testid="stat-divided">除以1.05後為：{stats.dividedBy105.toLocaleString('zh-TW')}</Badge>
+            <Badge variant="default" className="text-sm px-3 py-1.5" data-testid="stat-count">
+              總數量：{stats.count}
+            </Badge>
+            <Badge variant="default" className="text-sm px-3 py-1.5" data-testid="stat-sum">
+              總和：{stats.sum.toLocaleString('zh-TW')}
+            </Badge>
+            <Badge variant="default" className="text-sm px-3 py-1.5" data-testid="stat-divided">
+              除以1.05：{stats.dividedBy105.toLocaleString('zh-TW')}
+            </Badge>
           </div>
         )}
         
