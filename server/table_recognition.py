@@ -217,26 +217,37 @@ def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
             # 移除多餘的空白字符
             cleaned_cell = re.sub(r'\s+', ' ', cleaned_cell)
             
-            # 修正帶有貨幣符號的數字粘連問題（例如：$28,476$28,476$28,476 -> $28,476）
-            # 處理重複的貨幣數字模式
-            # 模式: $123,456$123,456 或 $123,456$123,456$123,456
+            # 修正帶有貨幣符號的數字粘連問題（例如：$28,476$28,476 或 $25,748$25,752）
+            # 使用分詞策略：提取所有貨幣+數字組合，只保留第一個（或差異顯著的多個）
+            
+            # 1. 先嘗試完全相同的重複模式（最快）
             currency_pattern = r'^([\$¥€£₩][\d,]+)\1+$'
             match = re.match(currency_pattern, cleaned_cell)
             if match:
                 cleaned_cell = match.group(1)
             else:
-                # 嘗試 NT$ 這種兩字符前綴
+                # 2. 嘗試 NT$ 完全重複
                 nt_pattern = r'^(NT\$[\d,]+)\1+$'
                 match = re.match(nt_pattern, cleaned_cell)
                 if match:
                     cleaned_cell = match.group(1)
                 else:
-                    # 處理沒有貨幣符號的數字重複
-                    # 模式: 123,456123,456 -> 123,456
-                    number_pattern = r'^([\d,]+)\1+$'
-                    match = re.match(number_pattern, cleaned_cell)
-                    if match:
-                        cleaned_cell = match.group(1)
+                    # 3. 檢測多個貨幣符號（處理略微不同的重複，如 $25,748$25,752）
+                    # 如果儲存格包含多個貨幣符號，只保留第一個完整的數字
+                    if cleaned_cell.count('$') > 1 or cleaned_cell.count('¥') > 1 or \
+                       cleaned_cell.count('€') > 1 or cleaned_cell.count('£') > 1 or \
+                       cleaned_cell.count('₩') > 1 or cleaned_cell.count('NT$') > 1:
+                        # 分詞：找出所有貨幣+數字的組合
+                        tokens = re.findall(r'(?:NT\$|[\$¥€£₩])[\d,]+(?:\.\d+)?', cleaned_cell)
+                        if tokens:
+                            # 只保留第一個 token
+                            cleaned_cell = tokens[0]
+                    else:
+                        # 4. 處理沒有貨幣符號的數字重複（如 123,456123,456）
+                        number_pattern = r'^([\d,]+)\1+$'
+                        match = re.match(number_pattern, cleaned_cell)
+                        if match:
+                            cleaned_cell = match.group(1)
             
             # 修正日期粘連問題（例如：2023/072023/08 -> 2023/07）
             if re.match(r'^(\d{4}/\d{2})\d{4}/\d{2}$', cleaned_cell):
