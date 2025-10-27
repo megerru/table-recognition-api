@@ -204,9 +204,73 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
     }
 
 
+def detect_repeating_pattern(text: str) -> Optional[List[str]]:
+    """
+    檢測字串中的重複模式並分割
+    例如：'126,300126,300126,300' -> ['126,300', '126,300', '126,300']
+    
+    Args:
+        text: 待檢測的字串
+        
+    Returns:
+        如果檢測到重複模式，返回分割後的列表；否則返回 None
+    """
+    import re
+    
+    if not text or len(text) < 2:
+        return None
+    
+    # 嘗試不同的模式長度（從短到長）
+    # 最小模式長度為 2，最大為字串長度的一半
+    for pattern_len in range(2, len(text) // 2 + 1):
+        pattern = text[:pattern_len]
+        
+        # 檢查是否是完全重複
+        if text == pattern * (len(text) // pattern_len):
+            count = len(text) // pattern_len
+            return [pattern] * count
+        
+        # 檢查是否是近似重複（允許最後一個不完整）
+        full_repeats = len(text) // pattern_len
+        if full_repeats > 1:
+            reconstructed = pattern * full_repeats
+            remainder = text[len(reconstructed):]
+            
+            # 如果餘數是模式的前綴，則認為是重複模式
+            if remainder and pattern.startswith(remainder):
+                return [pattern] * full_repeats
+            
+            # 如果餘數很短（小於模式長度的20%），可能是識別錯誤，忽略
+            if len(remainder) > 0 and len(remainder) < pattern_len * 0.2:
+                return [pattern] * full_repeats
+    
+    # 特殊處理：檢測帶分隔符的重複（如 "123,456123,456"）
+    # 嘗試常見的數字模式
+    number_patterns = [
+        r'[\d,]+',  # 帶千分位的數字
+        r'\d+',     # 純數字
+        r'[\$¥€£₩][\d,]+',  # 帶貨幣符號的數字
+        r'NT\$[\d,]+',      # NT$數字
+        r'\d{4}/\d{2}',     # 日期
+    ]
+    
+    for pattern_regex in number_patterns:
+        matches = re.findall(pattern_regex, text)
+        if len(matches) >= 2:
+            # 檢查是否所有匹配項相似（允許小差異）
+            first = matches[0]
+            similar_count = sum(1 for m in matches if m == first or abs(len(m) - len(first)) <= 1)
+            
+            # 如果大部分匹配項相似，認為是重複模式
+            if similar_count >= len(matches) * 0.7:
+                return matches
+    
+    return None
+
+
 def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
     """
-    清理表格數據中的常見錯誤
+    清理表格數據中的常見錯誤，並自動將粘連的列分割開
     
     Args:
         rows: 二維陣列表示的表格
@@ -216,6 +280,7 @@ def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
     """
     import re
     
+    # 第一步：初步清理每個儲存格
     cleaned_rows = []
     for row in rows:
         cleaned_row = []
@@ -230,49 +295,83 @@ def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
             # 移除多餘的空白字符
             cleaned_cell = re.sub(r'\s+', ' ', cleaned_cell)
             
-            # 修正帶有貨幣符號的數字粘連問題（例如：$28,476$28,476 或 $25,748$25,752）
-            # 使用分詞策略：提取所有貨幣+數字組合，只保留第一個（或差異顯著的多個）
+            cleaned_row.append(cleaned_cell if cleaned_cell else '-')
+        
+        cleaned_rows.append(cleaned_row)
+    
+    # 第二步：檢測並分割粘連的列
+    expanded_rows = []
+    max_cols = 0
+    
+    for row_idx, row in enumerate(cleaned_rows):
+        expanded_row = []
+        
+        for cell in row:
+            if cell == '-':
+                expanded_row.append(cell)
+                continue
             
-            # 1. 先嘗試完全相同的重複模式（最快）
+            # 嘗試檢測重複模式
+            split_cells = detect_repeating_pattern(cell)
+            
+            if split_cells and len(split_cells) > 1:
+                # 檢測到重複，分割成多列
+                print(f"🔍 檢測到重複模式 (行{row_idx}): '{cell}' -> {split_cells}", file=sys.stderr)
+                expanded_row.extend(split_cells)
+            else:
+                # 沒有重複，保持原樣
+                expanded_row.append(cell)
+        
+        expanded_rows.append(expanded_row)
+        max_cols = max(max_cols, len(expanded_row))
+    
+    # 第三步：統一列數（補齊短行）
+    for row in expanded_rows:
+        while len(row) < max_cols:
+            row.append('-')
+    
+    # 第四步：再次清理每個儲存格（處理分割後的數據）
+    final_rows = []
+    for row in expanded_rows:
+        final_row = []
+        for cell in row:
+            if cell == '-' or not cell:
+                final_row.append('-')
+                continue
+            
+            cleaned_cell = cell.strip()
+            
+            # 修正帶有貨幣符號的數字粘連問題（例如：$28,476$28,476）
             currency_pattern = r'^([\$¥€£₩][\d,]+)\1+$'
             match = re.match(currency_pattern, cleaned_cell)
             if match:
                 cleaned_cell = match.group(1)
             else:
-                # 2. 嘗試 NT$ 完全重複
+                # 嘗試 NT$ 完全重複
                 nt_pattern = r'^(NT\$[\d,]+)\1+$'
                 match = re.match(nt_pattern, cleaned_cell)
                 if match:
                     cleaned_cell = match.group(1)
                 else:
-                    # 3. 檢測多個貨幣符號（處理略微不同的重複，如 $25,748$25,752）
-                    # 如果儲存格包含多個貨幣符號，只保留第一個完整的數字
-                    if cleaned_cell.count('$') > 1 or cleaned_cell.count('¥') > 1 or \
-                       cleaned_cell.count('€') > 1 or cleaned_cell.count('£') > 1 or \
-                       cleaned_cell.count('₩') > 1 or cleaned_cell.count('NT$') > 1:
-                        # 分詞：找出所有貨幣+數字的組合
+                    # 處理多個貨幣符號
+                    if cleaned_cell.count('$') > 1 or cleaned_cell.count('¥') > 1:
                         tokens = re.findall(r'(?:NT\$|[\$¥€£₩])[\d,]+(?:\.\d+)?', cleaned_cell)
                         if tokens:
-                            # 只保留第一個 token
                             cleaned_cell = tokens[0]
-                    else:
-                        # 4. 處理沒有貨幣符號的數字重複（如 123,456123,456）
-                        number_pattern = r'^([\d,]+)\1+$'
-                        match = re.match(number_pattern, cleaned_cell)
-                        if match:
-                            cleaned_cell = match.group(1)
             
-            # 修正日期粘連問題（例如：2023/072023/08 -> 2023/07）
+            # 修正日期粘連問題
             if re.match(r'^(\d{4}/\d{2})\d{4}/\d{2}$', cleaned_cell):
                 match = re.match(r'^(\d{4}/\d{2}).*', cleaned_cell)
                 if match:
                     cleaned_cell = match.group(1)
             
-            cleaned_row.append(cleaned_cell if cleaned_cell else '-')
+            final_row.append(cleaned_cell if cleaned_cell else '-')
         
-        cleaned_rows.append(cleaned_row)
+        final_rows.append(final_row)
     
-    return cleaned_rows
+    print(f"✅ 分列完成：{len(rows)} 行 × {max(len(r) for r in rows)} 列 -> {len(final_rows)} 行 × {max_cols} 列", file=sys.stderr)
+    
+    return final_rows
 
 
 def parse_html_table(html: str) -> List[List[str]]:
