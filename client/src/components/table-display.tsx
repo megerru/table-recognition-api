@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TableRecognitionResult } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -37,19 +37,19 @@ export function TableDisplay({ tables, className, onGlobalSelectionChange }: Tab
       } else {
         newMap.delete(tableIndex);
       }
-      
-      // 收集所有表格的選取儲存格
-      const allCells: string[] = [];
-      newMap.forEach(tableCells => {
-        allCells.push(...tableCells);
-      });
-      
-      // 通知父組件
-      onGlobalSelectionChange?.(allCells);
-      
       return newMap;
     });
   };
+
+  // 使用 useEffect 通知父組件，避免無限循環
+  useEffect(() => {
+    const allCells: string[] = [];
+    tableSelections.forEach(tableCells => {
+      allCells.push(...tableCells);
+    });
+    onGlobalSelectionChange?.(allCells);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableSelections]);
 
   if (!tables || tables.length === 0) {
     return null;
