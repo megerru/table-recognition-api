@@ -208,7 +208,9 @@ def smart_split_cell(text: str) -> List[str]:
     """
     智能分割儲存格內容
     1. 優先使用多個空格作為分隔符
-    2. 如果沒有空格，檢測數字重複模式（如 126,300126,300）
+    2. 檢測數字重複模式
+    3. 檢測日期重複模式
+    4. 檢測中文+數字重複（如：已付126,300未付126,300）
     
     Args:
         text: 待分割的字串
@@ -222,37 +224,65 @@ def smart_split_cell(text: str) -> List[str]:
         return [text]
     
     # 方法1：使用多個空格分割（最常見的情況）
-    # 檢測是否包含 2+ 個連續空格
     if '  ' in text:  # 至少 2 個空格
-        # 使用 2+ 個空格作為分隔符
         parts = re.split(r'\s{2,}', text)
-        # 清理每個部分
         cleaned_parts = [p.strip() for p in parts if p.strip()]
         if len(cleaned_parts) > 1:
             print(f"🔍 使用空格分割: '{text[:50]}...' -> {len(cleaned_parts)} 列", file=sys.stderr)
             return cleaned_parts
     
-    # 方法2：檢測無空格的數字重複（如 126,300126,300126,300）
-    # 只在沒有空格的情況下使用
+    # 方法2：檢測單個空格，但要確保前後都是內容（更激進的分割）
+    if ' ' in text:
+        # 嘗試用單空格分割，但要過濾空結果
+        parts = text.split(' ')
+        # 合併連續的短片段（可能是一個詞的一部分）
+        merged_parts = []
+        temp = ""
+        for part in parts:
+            if not part:
+                continue
+            # 如果是數字或長度>2的文字，視為獨立單元
+            if part.replace(',', '').isdigit() or len(part) > 2:
+                if temp:
+                    merged_parts.append(temp.strip())
+                    temp = ""
+                merged_parts.append(part)
+            else:
+                temp += (' ' if temp else '') + part
+        if temp:
+            merged_parts.append(temp.strip())
+        
+        if len(merged_parts) > 1:
+            print(f"🔍 使用單空格分割: '{text[:50]}...' -> {merged_parts}", file=sys.stderr)
+            return merged_parts
+    
+    # 方法3：檢測無空格的數字重複（如 126,300126,300）
     if ' ' not in text:
-        # 檢測帶千分位的數字重複
         number_pattern = r'[\d,]+'
         matches = re.findall(number_pattern, text)
         
-        # 如果找到多個相同長度的數字，可能是重複
         if len(matches) >= 2:
-            # 檢查是否所有數字長度相似
             first_len = len(matches[0])
             similar = all(abs(len(m) - first_len) <= 2 for m in matches)
             
             if similar:
-                # 檢查原始字串是否可以完全由這些數字組成
                 reconstructed = ''.join(matches)
                 if reconstructed == text:
                     print(f"🔍 檢測到數字重複: '{text[:50]}...' -> {matches}", file=sys.stderr)
                     return matches
     
-    # 方法3：檢測日期+數字的重複（如 2024/012024/02）
+    # 方法4：檢測中文+數字組合重複（如：已付126,300未付126,300）
+    if ' ' not in text:
+        # 匹配：中文+數字（帶千分位）
+        pattern = r'[\u4e00-\u9fff]+[\d,]+'
+        matches = re.findall(pattern, text)
+        if len(matches) >= 2:
+            reconstructed = ''.join(matches)
+            if reconstructed == text or len(reconstructed) > len(text) * 0.8:
+                print(f"🔍 檢測到中文+數字重複: '{text[:50]}...' -> {matches}", file=sys.stderr)
+                return matches
+    
+    # 方法5：檢測日期重複（如 2024/012024/02）
     if ' ' not in text:
         date_number = r'\d{4}/\d{2}'
         matches = re.findall(date_number, text)

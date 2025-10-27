@@ -252,29 +252,6 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {stats && (
-          <div className="flex items-center gap-4 p-4 bg-primary/10 border-2 border-primary/30 rounded-lg flex-wrap" data-testid="stats-bar">
-            <div className="flex items-center gap-2">
-              <Calculator className="w-5 h-5 text-primary" />
-              <span className="text-base font-semibold text-primary">選取統計：</span>
-              {selections.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {selections.length + (selection ? 1 : 0)} 個範圍
-                </Badge>
-              )}
-            </div>
-            <Badge variant="default" className="text-sm px-3 py-1.5" data-testid="stat-count">
-              總數量：{stats.count}
-            </Badge>
-            <Badge variant="default" className="text-sm px-3 py-1.5" data-testid="stat-sum">
-              總和：{stats.sum.toLocaleString('zh-TW')}
-            </Badge>
-            <Badge variant="default" className="text-sm px-3 py-1.5" data-testid="stat-divided">
-              除以1.05：{stats.dividedBy105.toLocaleString('zh-TW')}
-            </Badge>
-          </div>
-        )}
-        
         <div className="overflow-auto max-h-[800px] rounded-lg border border-border">
           <table className="w-full text-sm border-collapse">
             <thead className="bg-muted sticky top-0 z-10">
