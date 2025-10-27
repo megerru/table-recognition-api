@@ -159,7 +159,7 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
                     result_type = "lineless"
                     confidence = 0.85
                 
-                if best_result and best_rows:
+                if best_result and best_rows and best_result.pred_html:
                 
                     # 調試：輸出原始 HTML
                     print(f"\n=== 表格 {table_index} 調試信息 ===", file=sys.stderr)
