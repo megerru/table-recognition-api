@@ -204,68 +204,66 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
     }
 
 
-def detect_repeating_pattern(text: str) -> Optional[List[str]]:
+def smart_split_cell(text: str) -> List[str]:
     """
-    檢測字串中的重複模式並分割
-    例如：'126,300126,300126,300' -> ['126,300', '126,300', '126,300']
+    智能分割儲存格內容
+    1. 優先使用多個空格作為分隔符
+    2. 如果沒有空格，檢測數字重複模式（如 126,300126,300）
     
     Args:
-        text: 待檢測的字串
+        text: 待分割的字串
         
     Returns:
-        如果檢測到重複模式，返回分割後的列表；否則返回 None
+        分割後的列表
     """
     import re
     
     if not text or len(text) < 2:
-        return None
+        return [text]
     
-    # 嘗試不同的模式長度（從短到長）
-    # 最小模式長度為 2，最大為字串長度的一半
-    for pattern_len in range(2, len(text) // 2 + 1):
-        pattern = text[:pattern_len]
+    # 方法1：使用多個空格分割（最常見的情況）
+    # 檢測是否包含 2+ 個連續空格
+    if '  ' in text:  # 至少 2 個空格
+        # 使用 2+ 個空格作為分隔符
+        parts = re.split(r'\s{2,}', text)
+        # 清理每個部分
+        cleaned_parts = [p.strip() for p in parts if p.strip()]
+        if len(cleaned_parts) > 1:
+            print(f"🔍 使用空格分割: '{text[:50]}...' -> {len(cleaned_parts)} 列", file=sys.stderr)
+            return cleaned_parts
+    
+    # 方法2：檢測無空格的數字重複（如 126,300126,300126,300）
+    # 只在沒有空格的情況下使用
+    if ' ' not in text:
+        # 檢測帶千分位的數字重複
+        number_pattern = r'[\d,]+'
+        matches = re.findall(number_pattern, text)
         
-        # 檢查是否是完全重複
-        if text == pattern * (len(text) // pattern_len):
-            count = len(text) // pattern_len
-            return [pattern] * count
-        
-        # 檢查是否是近似重複（允許最後一個不完整）
-        full_repeats = len(text) // pattern_len
-        if full_repeats > 1:
-            reconstructed = pattern * full_repeats
-            remainder = text[len(reconstructed):]
-            
-            # 如果餘數是模式的前綴，則認為是重複模式
-            if remainder and pattern.startswith(remainder):
-                return [pattern] * full_repeats
-            
-            # 如果餘數很短（小於模式長度的20%），可能是識別錯誤，忽略
-            if len(remainder) > 0 and len(remainder) < pattern_len * 0.2:
-                return [pattern] * full_repeats
-    
-    # 特殊處理：檢測帶分隔符的重複（如 "123,456123,456"）
-    # 嘗試常見的數字模式
-    number_patterns = [
-        r'[\d,]+',  # 帶千分位的數字
-        r'\d+',     # 純數字
-        r'[\$¥€£₩][\d,]+',  # 帶貨幣符號的數字
-        r'NT\$[\d,]+',      # NT$數字
-        r'\d{4}/\d{2}',     # 日期
-    ]
-    
-    for pattern_regex in number_patterns:
-        matches = re.findall(pattern_regex, text)
+        # 如果找到多個相同長度的數字，可能是重複
         if len(matches) >= 2:
-            # 檢查是否所有匹配項相似（允許小差異）
-            first = matches[0]
-            similar_count = sum(1 for m in matches if m == first or abs(len(m) - len(first)) <= 1)
+            # 檢查是否所有數字長度相似
+            first_len = len(matches[0])
+            similar = all(abs(len(m) - first_len) <= 2 for m in matches)
             
-            # 如果大部分匹配項相似，認為是重複模式
-            if similar_count >= len(matches) * 0.7:
+            if similar:
+                # 檢查原始字串是否可以完全由這些數字組成
+                reconstructed = ''.join(matches)
+                if reconstructed == text:
+                    print(f"🔍 檢測到數字重複: '{text[:50]}...' -> {matches}", file=sys.stderr)
+                    return matches
+    
+    # 方法3：檢測日期+數字的重複（如 2024/012024/02）
+    if ' ' not in text:
+        date_number = r'\d{4}/\d{2}'
+        matches = re.findall(date_number, text)
+        if len(matches) >= 2:
+            reconstructed = ''.join(matches)
+            if reconstructed == text:
+                print(f"🔍 檢測到日期重複: '{text[:50]}...' -> {matches}", file=sys.stderr)
                 return matches
     
-    return None
+    # 無法分割，返回原始文字
+    return [text]
 
 
 def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
@@ -299,7 +297,7 @@ def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
         
         cleaned_rows.append(cleaned_row)
     
-    # 第二步：檢測並分割粘連的列
+    # 第二步：智能分割粘連的列
     expanded_rows = []
     max_cols = 0
     
@@ -311,15 +309,14 @@ def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
                 expanded_row.append(cell)
                 continue
             
-            # 嘗試檢測重複模式
-            split_cells = detect_repeating_pattern(cell)
+            # 智能分割儲存格
+            split_cells = smart_split_cell(cell)
             
-            if split_cells and len(split_cells) > 1:
-                # 檢測到重複，分割成多列
-                print(f"🔍 檢測到重複模式 (行{row_idx}): '{cell}' -> {split_cells}", file=sys.stderr)
+            if len(split_cells) > 1:
+                # 分割成多列
                 expanded_row.extend(split_cells)
             else:
-                # 沒有重複，保持原樣
+                # 保持原樣
                 expanded_row.append(cell)
         
         expanded_rows.append(expanded_row)
