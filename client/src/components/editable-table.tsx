@@ -129,9 +129,11 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
 
   // 當選取變化時，通知父組件
   useEffect(() => {
-    const cells = getSelectedCells();
-    onSelectionChange?.(cells);
-  }, [selection, selections, data, getSelectedCells, onSelectionChange]);
+    if (onSelectionChange) {
+      const cells = getSelectedCells();
+      onSelectionChange(cells);
+    }
+  }, [selection, selections]);
 
   const calculateStats = useCallback(() => {
     const cells = getSelectedCells();

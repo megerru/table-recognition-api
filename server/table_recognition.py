@@ -431,6 +431,12 @@ def parse_html_table(html: str) -> List[List[str]]:
             elif tag in ['td', 'th'] and self.in_row:
                 self.in_cell = True
                 self.current_cell = []
+            elif tag == 'br' and self.in_cell:
+                # 遇到 <br> 標籤時，將當前內容作為一個獨立的列
+                cell_text = ''.join(self.current_cell).strip()
+                if cell_text:
+                    self.current_row.append(cell_text)
+                self.current_cell = []
                 
         def handle_endtag(self, tag):
             if tag == 'table':
@@ -441,7 +447,8 @@ def parse_html_table(html: str) -> List[List[str]]:
                 self.in_row = False
             elif tag in ['td', 'th'] and self.in_cell:
                 cell_text = ''.join(self.current_cell).strip()
-                self.current_row.append(cell_text)
+                if cell_text:
+                    self.current_row.append(cell_text)
                 self.in_cell = False
                 
         def handle_data(self, data):
