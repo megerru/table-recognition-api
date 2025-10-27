@@ -11,20 +11,44 @@ import { EditableTable } from "@/components/editable-table";
 interface TableDisplayProps {
   tables: TableRecognitionResult[];
   className?: string;
+  onGlobalSelectionChange?: (allCells: string[]) => void;
 }
 
 type ViewMode = "tabs" | "all";
 
-export function TableDisplay({ tables, className }: TableDisplayProps) {
+export function TableDisplay({ tables, className, onGlobalSelectionChange }: TableDisplayProps) {
   const [activeTab, setActiveTab] = useState("0");
   const [editMode, setEditMode] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("tabs");
   const [editedTables, setEditedTables] = useState<string[][][]>(tables.map(t => t.rows));
+  const [tableSelections, setTableSelections] = useState<Map<number, string[]>>(new Map());
 
   const handleTableDataChange = (index: number, newData: string[][]) => {
     const updated = [...editedTables];
     updated[index] = newData;
     setEditedTables(updated);
+  };
+
+  const handleTableSelectionChange = (tableIndex: number, cells: string[]) => {
+    setTableSelections(prev => {
+      const newMap = new Map(prev);
+      if (cells.length > 0) {
+        newMap.set(tableIndex, cells);
+      } else {
+        newMap.delete(tableIndex);
+      }
+      
+      // 收集所有表格的選取儲存格
+      const allCells: string[] = [];
+      newMap.forEach(tableCells => {
+        allCells.push(...tableCells);
+      });
+      
+      // 通知父組件
+      onGlobalSelectionChange?.(allCells);
+      
+      return newMap;
+    });
   };
 
   if (!tables || tables.length === 0) {
@@ -105,6 +129,7 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
               tableIndex={0}
               confidence={tables[0].confidence}
               onDataChange={(data) => handleTableDataChange(0, data)}
+              onSelectionChange={(cells) => handleTableSelectionChange(0, cells)}
             />
           </div>
         ) : viewMode === "all" ? (
@@ -130,6 +155,7 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
                     confidence={table.confidence}
                     pageNumber={table.pageNumber}
                     onDataChange={(data) => handleTableDataChange(index, data)}
+                    onSelectionChange={(cells) => handleTableSelectionChange(index, cells)}
                   />
                 </div>
               );
@@ -163,6 +189,7 @@ export function TableDisplay({ tables, className }: TableDisplayProps) {
                   confidence={table.confidence}
                   pageNumber={table.pageNumber}
                   onDataChange={(data) => handleTableDataChange(index, data)}
+                  onSelectionChange={(cells) => handleTableSelectionChange(index, cells)}
                 />
               </TabsContent>
             ))}

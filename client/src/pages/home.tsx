@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { UploadZone } from "@/components/upload-zone";
 import { ProcessingIndicator } from "@/components/processing-indicator";
@@ -10,9 +10,11 @@ import { ProcessingStatus, TableRecognitionResult } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { convertTableToTraditional } from "@/lib/convert";
-import { Table, AlertCircle, RefreshCw } from "lucide-react";
+import { Table, AlertCircle, RefreshCw, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface ImageInfo {
   url: string;
@@ -33,7 +35,28 @@ export default function Home() {
   const [recognizedTables, setRecognizedTables] = useState<TableRecognitionResult[]>([]);
   const [currentFilename, setCurrentFilename] = useState<string>("");
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [globalSelectedCells, setGlobalSelectedCells] = useState<string[]>([]);
   const { toast } = useToast();
+
+  // 全局統計計算
+  const globalStats = useMemo(() => {
+    if (globalSelectedCells.length === 0) return null;
+
+    // 提取數字：移除 $, ¥, € 等貨幣符號和逗號
+    const numbers = globalSelectedCells
+      .map(c => {
+        const cleaned = c.replace(/[\$¥€£₩,]/g, '').replace(/NT\$/g, '');
+        return parseFloat(cleaned);
+      })
+      .filter(n => !isNaN(n));
+
+    if (numbers.length === 0) return null;
+
+    const sum = Math.round(numbers.reduce((a, b) => a + b, 0));
+    const dividedBy105 = Math.round(sum / 1.05);
+
+    return { sum, dividedBy105, count: numbers.length };
+  }, [globalSelectedCells]);
 
   // 上傳並預覽
   const uploadMutation = useMutation({
@@ -316,7 +339,41 @@ export default function Home() {
 
           {recognizedTables.length > 0 && processingStatus.status === "completed" && (
             <div className="space-y-8 animate-in fade-in-50 duration-500">
-              <TableDisplay tables={recognizedTables} />
+              {/* 全局統計面板 */}
+              {globalStats && (
+                <Card className="border-2 border-primary/50 bg-gradient-to-r from-primary/5 to-primary/10" data-testid="global-stats-panel">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-primary-foreground">
+                          <Calculator className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-primary">跨表格統計</h3>
+                          <p className="text-xs text-muted-foreground">選取來自所有表格的儲存格</p>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-[200px]" />
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Badge variant="default" className="text-sm px-4 py-2" data-testid="global-stat-count">
+                          總數量：{globalStats.count}
+                        </Badge>
+                        <Badge variant="default" className="text-sm px-4 py-2" data-testid="global-stat-sum">
+                          總和：{globalStats.sum.toLocaleString('zh-TW')}
+                        </Badge>
+                        <Badge variant="default" className="text-sm px-4 py-2" data-testid="global-stat-divided">
+                          除以1.05：{globalStats.dividedBy105.toLocaleString('zh-TW')}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <TableDisplay 
+                tables={recognizedTables} 
+                onGlobalSelectionChange={setGlobalSelectedCells}
+              />
               
               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between p-6 bg-card rounded-xl border border-border">
                 <ExportButtons

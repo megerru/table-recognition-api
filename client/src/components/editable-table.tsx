@@ -28,9 +28,10 @@ interface EditableTableProps {
   confidence?: number;
   pageNumber?: number;
   onDataChange?: (data: string[][]) => void;
+  onSelectionChange?: (cells: string[]) => void;
 }
 
-export function EditableTable({ initialData, tableIndex, confidence, pageNumber, onDataChange }: EditableTableProps) {
+export function EditableTable({ initialData, tableIndex, confidence, pageNumber, onDataChange, onSelectionChange }: EditableTableProps) {
   const [data, setData] = useState<string[][]>(initialData);
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [selection, setSelection] = useState<CellSelection | null>(null);
@@ -122,6 +123,12 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
     
     return cells;
   }, [selection, selections, data]);
+
+  // 當選取變化時，通知父組件
+  useEffect(() => {
+    const cells = getSelectedCells();
+    onSelectionChange?.(cells);
+  }, [selection, selections, data, getSelectedCells, onSelectionChange]);
 
   const calculateStats = useCallback(() => {
     const cells = getSelectedCells();
