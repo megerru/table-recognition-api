@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: table-recognition-api
+    env: node
+    plan: free
+    buildCommand: |
+      npm install
+      npm run build
+      pip3 install -r render-requirements.txt
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    disk:
+      name: table-data
+      mountPath: /tmp
+      sizeGB: 1
