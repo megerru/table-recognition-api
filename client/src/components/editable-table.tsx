@@ -102,9 +102,12 @@ export function EditableTable({ initialData, tableIndex, confidence, pageNumber,
     const cells: string[] = [];
     
     // 收集所有選取範圍的儲存格
-    const allRanges = [...selections];
+    const allRanges: SelectionRange[] = [...selections];
     if (selection) {
-      allRanges.push(selection);
+      allRanges.push({
+        id: 'current',
+        ...selection
+      });
     }
     
     allRanges.forEach(range => {
