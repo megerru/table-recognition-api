@@ -278,7 +278,7 @@ def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
     """
     import re
     
-    # 第一步：初步清理每個儲存格
+    # 第一步：初步清理每個儲存格（保留空格，不壓縮）
     cleaned_rows = []
     for row in rows:
         cleaned_row = []
@@ -287,11 +287,8 @@ def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
                 cleaned_row.append('-')
                 continue
             
-            # 清理單元格內容
+            # 只去除前後空白，不壓縮中間的空格（用於後續分列）
             cleaned_cell = cell.strip()
-            
-            # 移除多餘的空白字符
-            cleaned_cell = re.sub(r'\s+', ' ', cleaned_cell)
             
             cleaned_row.append(cleaned_cell if cleaned_cell else '-')
         
@@ -336,7 +333,9 @@ def clean_table_data(rows: List[List[str]]) -> List[List[str]]:
                 final_row.append('-')
                 continue
             
+            # 去除前後空白，並壓縮內部空格為單個
             cleaned_cell = cell.strip()
+            cleaned_cell = re.sub(r'\s+', ' ', cleaned_cell)
             
             # 修正帶有貨幣符號的數字粘連問題（例如：$28,476$28,476）
             currency_pattern = r'^([\$¥€£₩][\d,]+)\1+$'
