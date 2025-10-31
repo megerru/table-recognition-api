@@ -132,6 +132,15 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
     redrawRegions();
   }, [regions, currentRegion, currentPage]);
 
+  // 使用 ref 避免閉包陷阱
+  const isDrawingRef = useRef(isDrawing);
+  const startPointRef = useRef(startPoint);
+
+  useEffect(() => {
+    isDrawingRef.current = isDrawing;
+    startPointRef.current = startPoint;
+  }, [isDrawing, startPoint]);
+
   // 原生觸控事件監聽（設置 passive: false 才能阻止滾動）
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -165,15 +174,15 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
 
     const touchMove = (e: TouchEvent) => {
       e.preventDefault();
-      if (!isDrawing) return;
+      if (!isDrawingRef.current) return;
 
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       const x = touch.clientX - rect.left;
       const y = touch.clientY - rect.top;
 
-      const width = x - startPoint.x;
-      const height = y - startPoint.y;
+      const width = x - startPointRef.current.x;
+      const height = y - startPointRef.current.y;
 
       setCurrentRegion(prev => prev ? {
         ...prev,
@@ -199,7 +208,7 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
       canvas.removeEventListener('touchend', touchEnd);
       canvas.removeEventListener('touchcancel', touchEnd);
     };
-  }, [isDrawing, startPoint, currentPage]);
+  }, [currentPage]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
