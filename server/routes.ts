@@ -3,10 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
-import { spawn, exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import { spawn } from "child_process";
 
 // 配置 multer 儲存，保留檔案副檔名
 const storage = multer.diskStorage({
@@ -63,22 +60,48 @@ interface TableRecognitionResult {
 
 async function convertPdfToImages(pdfPath: string): Promise<string[]> {
   const outputDir = path.join("uploads", "images", path.basename(pdfPath, ".pdf"));
-  
+
   try {
     await fs.mkdir(outputDir, { recursive: true });
-    
+
     const outputPrefix = path.join(outputDir, "page");
-    // 使用 300 DPI 提高圖片解析度，對數據密集的表格效果更好
-    const command = `pdftoppm -png -r 300 "${pdfPath}" "${outputPrefix}"`;
-    
-    await execAsync(command);
-    
+
+    // 使用 spawn 避免命令注入，設置 2 分鐘超時
+    await new Promise<void>((resolve, reject) => {
+      const pdftoppm = spawn("pdftoppm", [
+        "-png",
+        "-r", "300",
+        pdfPath,
+        outputPrefix
+      ], {
+        timeout: 2 * 60 * 1000 // 2 分鐘超時
+      });
+
+      let stderr = "";
+
+      pdftoppm.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      pdftoppm.on("close", (code) => {
+        if (code !== 0) {
+          reject(new Error(`PDF 轉換失敗: ${stderr || "未知錯誤"}`));
+        } else {
+          resolve();
+        }
+      });
+
+      pdftoppm.on("error", (error) => {
+        reject(new Error(`無法啟動 pdftoppm: ${error.message}`));
+      });
+    });
+
     const files = await fs.readdir(outputDir);
     const imageFiles = files
       .filter(f => f.endsWith(".png"))
       .map(f => path.join(outputDir, f))
       .sort();
-    
+
     return imageFiles;
   } catch (error) {
     console.error("PDF 轉換錯誤:", error);
@@ -87,46 +110,63 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
 }
 
 async function recognizeTables(imagePaths: string[]): Promise<TableRecognitionResult[]> {
-  return new Promise((resolve, reject) => {
-    const pythonScript = path.join(process.cwd(), "server", "table_recognition.py");
-    const imagePathsStr = imagePaths.join(",");
-    
-    const python = spawn("python3", [pythonScript, imagePathsStr]);
-    
-    let stdout = "";
-    let stderr = "";
-    
-    python.stdout.on("data", (data) => {
-      stdout += data.toString();
-    });
-    
-    python.stderr.on("data", (data) => {
-      const stderrText = data.toString();
-      stderr += stderrText;
-      // 即時顯示處理信息（旋轉、預處理等）
-      console.log(stderrText.trim());
-    });
-    
-    python.on("close", (code) => {
-      if (code !== 0) {
-        console.error("Python 错误:", stderr);
-        reject(new Error(`表格識別失敗: ${stderr || "未知錯誤"}`));
-        return;
-      }
-      
-      try {
-        const result = JSON.parse(stdout);
-        if (result.success) {
-          resolve(result.tables || []);
-        } else {
-          reject(new Error(result.error || "識別失敗"));
+  // 並發控制
+  while (activeOcrProcesses >= MAX_OCR_PROCESSES) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  activeOcrProcesses++;
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const pythonScript = path.join(process.cwd(), "server", "table_recognition.py");
+      const imagePathsStr = imagePaths.join(",");
+
+      const python = spawn("python3", [pythonScript, imagePathsStr], {
+        timeout: 3 * 60 * 1000 // 3 分鐘超時
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      python.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      python.stderr.on("data", (data) => {
+        const stderrText = data.toString();
+        stderr += stderrText;
+        // 即時顯示處理信息（旋轉、預處理等）
+        console.log(stderrText.trim());
+      });
+
+      python.on("close", (code) => {
+        if (code !== 0) {
+          console.error("Python 错误:", stderr);
+          reject(new Error(`表格識別失敗: ${stderr || "未知錯誤"}`));
+          return;
         }
-      } catch (error) {
-        console.error("解析 JSON 错误:", error, "输出:", stdout);
-        reject(new Error("解析識別結果失敗"));
-      }
+
+        try {
+          const result = JSON.parse(stdout);
+          if (result.success) {
+            resolve(result.tables || []);
+          } else {
+            reject(new Error(result.error || "識別失敗"));
+          }
+        } catch (error) {
+          console.error("解析 JSON 错误:", error, "输出:", stdout);
+          reject(new Error("解析識別結果失敗"));
+        }
+      });
+
+      python.on("error", (error) => {
+        reject(new Error(`無法啟動 Python: ${error.message}`));
+      });
     });
-  });
+  } finally {
+    activeOcrProcesses--;
+  }
 }
 
 async function cropImage(imagePath: string, x: number, y: number, width: number, height: number): Promise<string> {
@@ -134,14 +174,42 @@ async function cropImage(imagePath: string, x: number, y: number, width: number,
   const ext = path.extname(imagePath) || '.png';
   const basePath = imagePath.replace(ext, '');
   const outputPath = `${basePath}_crop_${Date.now()}${ext}`;
-  
+
   try {
-    // 使用 Python + Pillow 裁切圖片
-    const pythonScript = path.join(process.cwd(), "server", "crop_image.py");
-    const command = `python3 "${pythonScript}" "${imagePath}" "${outputPath}" ${x} ${y} ${width} ${height}`;
-    
-    await execAsync(command);
-    
+    // 使用 spawn 避免命令注入，設置 30 秒超時
+    await new Promise<void>((resolve, reject) => {
+      const pythonScript = path.join(process.cwd(), "server", "crop_image.py");
+      const python = spawn("python3", [
+        pythonScript,
+        imagePath,
+        outputPath,
+        x.toString(),
+        y.toString(),
+        width.toString(),
+        height.toString()
+      ], {
+        timeout: 30 * 1000 // 30 秒超時
+      });
+
+      let stderr = "";
+
+      python.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      python.on("close", (code) => {
+        if (code !== 0) {
+          reject(new Error(`圖片裁切失敗: ${stderr || "未知錯誤"}`));
+        } else {
+          resolve();
+        }
+      });
+
+      python.on("error", (error) => {
+        reject(new Error(`無法啟動 Python: ${error.message}`));
+      });
+    });
+
     return outputPath;
   } catch (error) {
     console.error("圖片裁切失敗:", error);
@@ -165,9 +233,104 @@ async function cleanupFiles(paths: string[]) {
 }
 
 // 儲存上傳的文件信息（臨時存儲，實際應用中應使用 Redis 等）
-const uploadedFiles = new Map<string, { imagePaths: string[]; uploadedFilePath: string; tempImageDir: string | null }>();
+interface SessionData {
+  imagePaths: string[];
+  uploadedFilePath: string;
+  tempImageDir: string | null;
+  createdAt: number;
+}
+
+const uploadedFiles = new Map<string, SessionData>();
+const SESSION_TTL = 30 * 60 * 1000; // 30 分鐘
+
+// 並發控制：限制同時運行的 OCR 進程數
+let activeOcrProcesses = 0;
+const MAX_OCR_PROCESSES = 3;
+
+// 確保 uploads 目錄存在
+async function ensureUploadsDir() {
+  const uploadsDir = path.resolve(process.cwd(), "uploads");
+  const imagesDir = path.join(uploadsDir, "images");
+
+  try {
+    await fs.mkdir(uploadsDir, { recursive: true });
+    await fs.mkdir(imagesDir, { recursive: true });
+    console.log(`✅ Uploads directory ready: ${uploadsDir}`);
+  } catch (error) {
+    console.error(`❌ Failed to create uploads directory:`, error);
+    throw error;
+  }
+}
+
+// 定期清理過期的 session
+function startSessionCleaner() {
+  setInterval(async () => {
+    const now = Date.now();
+    const expired: string[] = [];
+
+    for (const [sessionId, data] of uploadedFiles.entries()) {
+      if (now - data.createdAt > SESSION_TTL) {
+        expired.push(sessionId);
+      }
+    }
+
+    for (const sessionId of expired) {
+      const data = uploadedFiles.get(sessionId);
+      if (data) {
+        const filesToClean = [data.uploadedFilePath];
+        if (data.tempImageDir) {
+          filesToClean.push(data.tempImageDir);
+        }
+        await cleanupFiles(filesToClean);
+        uploadedFiles.delete(sessionId);
+        console.log(`🧹 Cleaned up expired session: ${sessionId}`);
+      }
+    }
+  }, 5 * 60 * 1000); // 每 5 分鐘清理一次
+}
+
+// 清理舊文件（啟動時執行）
+async function cleanupOldFiles() {
+  const uploadsDir = path.resolve(process.cwd(), "uploads");
+  const ONE_HOUR = 60 * 60 * 1000;
+  const now = Date.now();
+
+  try {
+    const files = await fs.readdir(uploadsDir);
+    let cleaned = 0;
+
+    for (const file of files) {
+      const filePath = path.join(uploadsDir, file);
+      try {
+        const stats = await fs.stat(filePath);
+        if (now - stats.mtimeMs > ONE_HOUR) {
+          if (stats.isDirectory()) {
+            await fs.rm(filePath, { recursive: true, force: true });
+          } else {
+            await fs.unlink(filePath);
+          }
+          cleaned++;
+        }
+      } catch (error) {
+        // 忽略單個文件的錯誤
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`🧹 Cleaned up ${cleaned} old files from uploads directory`);
+    }
+  } catch (error) {
+    console.error(`⚠️  Failed to cleanup old files:`, error);
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // 確保目錄存在並清理舊文件
+  await ensureUploadsDir();
+  await cleanupOldFiles();
+
+  // 啟動定期清理器
+  startSessionCleaner();
   // 新的上傳 API：只轉換，不識別
   app.post("/api/upload-preview", upload.single("file"), async (req, res) => {
     let imagePaths: string[] = [];
@@ -208,12 +371,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 生成唯一 ID
       const sessionId = Date.now().toString();
-      
+
       // 儲存文件信息
       uploadedFiles.set(sessionId, {
         imagePaths,
         uploadedFilePath,
-        tempImageDir
+        tempImageDir,
+        createdAt: Date.now()
       });
       
       // 返回圖片 URL 供前端預覽

@@ -77,12 +77,20 @@ app.use((req, res, next) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
 
+      log(`❌ Error: ${message}`, 'error-handler');
+      console.error(err);
+
       res.status(status).json({ message });
-      throw err;
+      // Don't throw - that would crash the entire process
     });
 
     // Set NODE_ENV to production if not set
+    if (!process.env.NODE_ENV) {
+      process.env.NODE_ENV = "production";
+      log(`⚠️  NODE_ENV not set, defaulting to production`);
+    }
     const isProduction = process.env.NODE_ENV === "production";
+    log(`🚀 Starting application...`);
     log(`Environment: ${isProduction ? 'production' : 'development'}`);
 
     // importantly only setup vite in development and after
