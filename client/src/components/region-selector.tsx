@@ -374,9 +374,9 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
           💡 用手指（或滑鼠）拖動即可框選表格區域。可以框選多個區域。
         </div>
 
-        {/* 觸控調試信息 */}
-        <div className="text-xs bg-blue-100 dark:bg-blue-900 p-2 rounded">
-          <strong>調試:</strong> {touchDebug}
+        {/* 觸控調試信息 - 超大超顯眼 */}
+        <div className="text-lg bg-red-500 text-white p-4 rounded font-bold text-center border-4 border-yellow-400">
+          🔍 調試: {touchDebug}
         </div>
 
         {/* 當前頁的區域列表 */}
