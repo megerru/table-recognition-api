@@ -3,7 +3,16 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
+
+// 在啟動時找到 pdftoppm 的絕對路徑（Replit Nix 環境需要）
+let PDFTOPPM_PATH = "pdftoppm";
+try {
+  PDFTOPPM_PATH = execSync("which pdftoppm", { encoding: "utf-8" }).trim();
+  console.log(`✅ Found pdftoppm at: ${PDFTOPPM_PATH}`);
+} catch (error) {
+  console.warn("⚠️  Could not find pdftoppm via 'which', using PATH fallback");
+}
 
 // 配置 multer 儲存，保留檔案副檔名
 const storage = multer.diskStorage({
@@ -68,14 +77,13 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
 
     // 使用 spawn 避免命令注入，設置 2 分鐘超時
     await new Promise<void>((resolve, reject) => {
-      const pdftoppm = spawn("pdftoppm", [
+      const pdftoppm = spawn(PDFTOPPM_PATH, [
         "-png",
         "-r", "300",
         pdfPath,
         outputPrefix
       ], {
-        timeout: 2 * 60 * 1000, // 2 分鐘超時
-        env: process.env // 繼承完整環境變數（包含 Nix PATH）
+        timeout: 2 * 60 * 1000 // 2 分鐘超時
       });
 
       let stderr = "";
