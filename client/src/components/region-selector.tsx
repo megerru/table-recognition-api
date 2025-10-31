@@ -132,6 +132,75 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
     redrawRegions();
   }, [regions, currentRegion, currentPage]);
 
+  // 原生觸控事件監聽（設置 passive: false 才能阻止滾動）
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const touchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const img = imageRef.current;
+      if (!img) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+
+      setIsDrawing(true);
+      setStartPoint({ x, y });
+      setCurrentRegion({
+        id: Date.now().toString(),
+        pageIndex: currentPage,
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        displayX: x,
+        displayY: y,
+        displayWidth: 0,
+        displayHeight: 0
+      });
+    };
+
+    const touchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (!isDrawing) return;
+
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+
+      const width = x - startPoint.x;
+      const height = y - startPoint.y;
+
+      setCurrentRegion(prev => prev ? {
+        ...prev,
+        displayWidth: width,
+        displayHeight: height
+      } : null);
+    };
+
+    const touchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      handleMouseUp();
+    };
+
+    // 添加原生事件監聽器，設置 passive: false
+    canvas.addEventListener('touchstart', touchStart, { passive: false });
+    canvas.addEventListener('touchmove', touchMove, { passive: false });
+    canvas.addEventListener('touchend', touchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', touchEnd, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('touchstart', touchStart);
+      canvas.removeEventListener('touchmove', touchMove);
+      canvas.removeEventListener('touchend', touchEnd);
+      canvas.removeEventListener('touchcancel', touchEnd);
+    };
+  }, [isDrawing, startPoint, currentPage]);
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     const img = imageRef.current;
@@ -218,61 +287,6 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
     setCurrentRegion(null);
   };
 
-  // 觸控事件處理（手機/平板支援）
-  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault(); // 防止滾動
-    const touch = e.touches[0];
-    const canvas = canvasRef.current;
-    const img = imageRef.current;
-    if (!canvas || !img) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-
-    setIsDrawing(true);
-    setStartPoint({ x, y });
-    setCurrentRegion({
-      id: Date.now().toString(),
-      pageIndex: currentPage,
-      x: 0,
-      y: 0,
-      width: 0,
-      height: 0,
-      displayX: x,
-      displayY: y,
-      displayWidth: 0,
-      displayHeight: 0
-    });
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault(); // 防止滾動
-    if (!isDrawing) return;
-
-    const touch = e.touches[0];
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-
-    const width = x - startPoint.x;
-    const height = y - startPoint.y;
-
-    setCurrentRegion(prev => prev ? {
-      ...prev,
-      displayWidth: width,
-      displayHeight: height
-    } : null);
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    handleMouseUp(); // 重用滑鼠的結束邏輯
-  };
-
   const removeRegion = (id: string) => {
     setRegions(prev => prev.filter(r => r.id !== id));
   };
@@ -336,10 +350,6 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchEnd}
             className="absolute top-0 left-0 cursor-crosshair touch-none"
             data-testid="canvas-selector"
           />
