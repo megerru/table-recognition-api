@@ -36,7 +36,8 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
   const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
   const [imageScale, setImageScale] = useState(1);
-  
+  const [touchDebug, setTouchDebug] = useState<string>("等待觸控...");
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -148,6 +149,7 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
 
     const touchStart = (e: TouchEvent) => {
       e.preventDefault();
+      setTouchDebug(`觸控開始 at ${new Date().toLocaleTimeString()}`);
       const touch = e.touches[0];
       const img = imageRef.current;
       if (!img) return;
@@ -184,6 +186,8 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
       const width = x - startPointRef.current.x;
       const height = y - startPointRef.current.y;
 
+      setTouchDebug(`拖動中: ${Math.round(width)}x${Math.round(height)}`);
+
       setCurrentRegion(prev => prev ? {
         ...prev,
         displayWidth: width,
@@ -193,6 +197,7 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
 
     const touchEnd = (e: TouchEvent) => {
       e.preventDefault();
+      setTouchDebug(`觸控結束 - 處理區域`);
       handleMouseUp();
     };
 
@@ -367,6 +372,11 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
         {/* 提示文字 */}
         <div className="text-sm text-muted-foreground">
           💡 用手指（或滑鼠）拖動即可框選表格區域。可以框選多個區域。
+        </div>
+
+        {/* 觸控調試信息 */}
+        <div className="text-xs bg-blue-100 dark:bg-blue-900 p-2 rounded">
+          <strong>調試:</strong> {touchDebug}
         </div>
 
         {/* 當前頁的區域列表 */}
