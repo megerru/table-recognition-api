@@ -74,7 +74,8 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
         pdfPath,
         outputPrefix
       ], {
-        timeout: 2 * 60 * 1000 // 2 分鐘超時
+        timeout: 2 * 60 * 1000, // 2 分鐘超時
+        env: process.env // 繼承完整環境變數（包含 Nix PATH）
       });
 
       let stderr = "";
@@ -123,7 +124,8 @@ async function recognizeTables(imagePaths: string[]): Promise<TableRecognitionRe
       const imagePathsStr = imagePaths.join(",");
 
       const python = spawn("python3", [pythonScript, imagePathsStr], {
-        timeout: 3 * 60 * 1000 // 3 分鐘超時
+        timeout: 3 * 60 * 1000, // 3 分鐘超時
+        env: process.env // 繼承完整環境變數
       });
 
       let stdout = "";
@@ -188,7 +190,8 @@ async function cropImage(imagePath: string, x: number, y: number, width: number,
         width.toString(),
         height.toString()
       ], {
-        timeout: 30 * 1000 // 30 秒超時
+        timeout: 30 * 1000, // 30 秒超時
+        env: process.env // 繼承完整環境變數
       });
 
       let stderr = "";
