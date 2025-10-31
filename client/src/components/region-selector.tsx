@@ -218,6 +218,61 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
     setCurrentRegion(null);
   };
 
+  // 觸控事件處理（手機/平板支援）
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault(); // 防止滾動
+    const touch = e.touches[0];
+    const canvas = canvasRef.current;
+    const img = imageRef.current;
+    if (!canvas || !img) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    setIsDrawing(true);
+    setStartPoint({ x, y });
+    setCurrentRegion({
+      id: Date.now().toString(),
+      pageIndex: currentPage,
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      displayX: x,
+      displayY: y,
+      displayWidth: 0,
+      displayHeight: 0
+    });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault(); // 防止滾動
+    if (!isDrawing) return;
+
+    const touch = e.touches[0];
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    const width = x - startPoint.x;
+    const height = y - startPoint.y;
+
+    setCurrentRegion(prev => prev ? {
+      ...prev,
+      displayWidth: width,
+      displayHeight: height
+    } : null);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    handleMouseUp(); // 重用滑鼠的結束邏輯
+  };
+
   const removeRegion = (id: string) => {
     setRegions(prev => prev.filter(r => r.id !== id));
   };
@@ -281,14 +336,18 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            className="absolute top-0 left-0 cursor-crosshair"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            className="absolute top-0 left-0 cursor-crosshair touch-none"
             data-testid="canvas-selector"
           />
         </div>
 
         {/* 提示文字 */}
         <div className="text-sm text-muted-foreground">
-          💡 按住滑鼠左鍵拖動即可框選表格區域。可以框選多個區域。
+          💡 用手指（或滑鼠）拖動即可框選表格區域。可以框選多個區域。
         </div>
 
         {/* 當前頁的區域列表 */}
