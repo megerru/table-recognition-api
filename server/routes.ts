@@ -79,7 +79,7 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
     await new Promise<void>((resolve, reject) => {
       const pdftoppm = spawn(PDFTOPPM_PATH, [
         "-png",
-        "-r", "300",
+        "-r", "150", // 降低 DPI 以節省記憶體和處理時間
         pdfPath,
         outputPrefix
       ], {
@@ -256,7 +256,7 @@ const SESSION_TTL = 30 * 60 * 1000; // 30 分鐘
 
 // 並發控制：限制同時運行的 OCR 進程數
 let activeOcrProcesses = 0;
-const MAX_OCR_PROCESSES = 3;
+const MAX_OCR_PROCESSES = 1; // 容器環境降低並發以節省記憶體
 
 // 確保 uploads 目錄存在
 async function ensureUploadsDir() {

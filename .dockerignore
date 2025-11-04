@@ -1,0 +1,61 @@
+# Node modules
+node_modules
+npm-debug.log
+
+# Build output
+dist
+.vite
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Uploads (will be created at runtime)
+uploads
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+.nyc_output
+
+# Documentation
+*.md
+!README.md
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+.Python
+*.so
+
+# Fly.io
+fly.toml
+
+# Misc
+.replit
+replit.nix

@@ -1,0 +1,38 @@
+# Fly.io 部署配置
+# 文檔: https://fly.io/docs/reference/configuration/
+
+app = "table-recognition-api"
+primary_region = "nrt" # Tokyo (最近的區域)
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
+
+# 記憶體配置 - 從 256MB 開始，可以根據需要調整
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512  # 512MB 記憶體（可以調整到 1024 或 2048）
+
+# 持久化存儲（用於 uploads 目錄）
+[[mounts]]
+  source = "table_uploads"
+  destination = "/app/uploads"
+  initial_size = "1gb"
