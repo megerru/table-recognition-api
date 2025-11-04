@@ -29,14 +29,14 @@ RUN npm ci --only=production
 # Stage 3: Build the application
 FROM base AS builder
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy package files
+COPY package*.json ./
+
+# Install ALL dependencies (including dev deps for building)
+RUN npm ci
 
 # Copy source code
 COPY . .
-
-# Install dev dependencies for build
-RUN npm install --save-dev
 
 # Build the application
 RUN npm run build
