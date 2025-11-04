@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { serveStatic, log } from "./vite";
 
 const app = express();
 
@@ -98,6 +98,7 @@ app.use((req, res, next) => {
     // doesn't interfere with the other routes
     if (!isProduction) {
       log('Setting up Vite development server...');
+      const { setupVite } = await import('./vite');
       await setupVite(app, server);
     } else {
       log('Serving static files from dist/public...');
