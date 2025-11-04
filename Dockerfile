@@ -86,13 +86,13 @@ RUN python3 -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()" || true
 # Copy Node.js dependencies
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy built application
+# Copy built application (includes both backend bundles and frontend in public/)
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
 
-# Copy server scripts
-COPY server/table_recognition.py ./server/table_recognition.py
-COPY server/crop_image.py ./server/crop_image.py
+# Copy server scripts (Python scripts not bundled by esbuild)
+COPY --from=builder /app/server/table_recognition.py ./server/table_recognition.py
+COPY --from=builder /app/server/crop_image.py ./server/crop_image.py
 
 # Create uploads directory
 RUN mkdir -p uploads/images
