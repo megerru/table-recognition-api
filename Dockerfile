@@ -67,16 +67,28 @@ RUN python3 -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()" || true
 # Stage 5: Production image
 FROM base AS production
 
+# Install Python dependencies directly in production stage
+RUN pip3 install --no-cache-dir --break-system-packages \
+    lineless-table-rec>=0.0.9 \
+    wired-table-rec>=0.0.7 \
+    rapidocr-onnxruntime>=1.3.0 \
+    Pillow>=10.0.0 \
+    onnxruntime>=1.16.0 \
+    numpy>=1.24.0 \
+    opencv-python-headless>=4.8.0 \
+    pyclipper>=1.3.0
+
+# Preload ONNX models in production stage
+RUN python3 -c "from lineless_table_rec.main import LinelessTableRecognition, LinelessTableInput; LinelessTableRecognition(LinelessTableInput())" || true
+RUN python3 -c "from wired_table_rec.main import WiredTableRecognition, WiredTableInput; WiredTableRecognition(WiredTableInput())" || true
+RUN python3 -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()" || true
+
 # Copy Node.js dependencies
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
-
-# Copy Python dependencies and models
-COPY --from=python-deps /usr/local/lib/python3.*/dist-packages /usr/local/lib/python3.11/dist-packages
-COPY --from=python-deps /root/.cache /root/.cache
 
 # Copy server scripts
 COPY server/table_recognition.py ./server/table_recognition.py
