@@ -10,6 +10,7 @@ import { ProcessingStatus, TableRecognitionResult } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { convertTableToTraditional } from "@/lib/convert";
+import { getApiUrl } from "@/lib/api-config";
 import { Table, AlertCircle, RefreshCw, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -135,7 +136,7 @@ export default function Home() {
           reject(new Error("網路錯誤，請檢查您的連線"));
         });
 
-        xhr.open('POST', '/api/upload-preview');
+        xhr.open('POST', getApiUrl('/api/upload-preview'));
         xhr.send(formData);
       });
     },
