@@ -99,7 +99,9 @@ app.use((req, res, next) => {
     // doesn't interfere with the other routes
     if (!isProduction) {
       log('Setting up Vite development server...');
-      const { setupVite } = await import('./vite');
+      // Dynamic import with string concatenation to prevent esbuild from bundling vite.ts
+      const viteModule = './vite';
+      const { setupVite } = await import(/* @vite-ignore */ viteModule);
       await setupVite(app, server);
     } else {
       log('Serving static files from dist/public...');
