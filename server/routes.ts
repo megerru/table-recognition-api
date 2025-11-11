@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs/promises";
 import { spawn, execSync } from "child_process";
 
-// 在啟動時找到 pdftoppm 的絕對路徑（Replit Nix 環境需要）
+// 在啟動時找到 pdftoppm 的絕對路徑
 let PDFTOPPM_PATH = "pdftoppm";
 try {
   PDFTOPPM_PATH = execSync("which pdftoppm", { encoding: "utf-8" }).trim();
