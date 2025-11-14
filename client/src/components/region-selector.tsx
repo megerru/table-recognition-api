@@ -349,13 +349,27 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
         )}
 
         {/* 圖片和 canvas 疊加 */}
-        <div ref={containerRef} className="relative border rounded-lg overflow-hidden bg-muted">
+        <div
+          ref={containerRef}
+          className="relative border rounded-lg overflow-hidden bg-muted"
+          style={{
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            touchAction: 'none'
+          }}
+        >
           <img
             ref={imageRef}
             src={images[currentPage].url}
             alt={`第 ${images[currentPage].pageNumber} 頁`}
             className="w-full h-auto"
-            style={{ display: "block", maxWidth: "100%" }}
+            style={{
+              display: "block",
+              maxWidth: "100%",
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              pointerEvents: 'none'
+            }}
             data-testid="img-preview"
           />
           <canvas
@@ -364,7 +378,7 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            className="absolute top-0 left-0 cursor-crosshair touch-none"
+            className="absolute top-0 left-0 cursor-crosshair"
             data-testid="canvas-selector"
           />
         </div>
