@@ -384,14 +384,21 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
         </div>
 
         {/* 提示文字 */}
-        <div className="text-sm text-muted-foreground">
-          💡 用手指（或滑鼠）拖動即可框選表格區域。可以框選多個區域。
+        <div className="space-y-2">
+          <div className="text-sm text-muted-foreground">
+            💡 用手指（或滑鼠）拖動即可框選表格區域。可以框選多個區域。
+          </div>
+          <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-2">
+            ⚠️ <strong>重要提示：</strong>請精確框選表格區域，排除標題、頁碼和手寫註記，以獲得最佳辨識效果。
+          </div>
         </div>
 
-        {/* 觸控調試信息 - 超大超顯眼 */}
-        <div className="text-lg bg-red-500 text-white p-4 rounded font-bold text-center border-4 border-yellow-400">
-          🔍 調試: {touchDebug}
-        </div>
+        {/* 觸控調試信息 - 只在開發模式顯示 */}
+        {import.meta.env.DEV && (
+          <div className="text-lg bg-red-500 text-white p-4 rounded font-bold text-center border-4 border-yellow-400">
+            🔍 調試: {touchDebug}
+          </div>
+        )}
 
         {/* 當前頁的區域列表 */}
         {regions.filter(r => r.pageIndex === currentPage).length > 0 && (
