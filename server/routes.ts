@@ -79,7 +79,7 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
     await new Promise<void>((resolve, reject) => {
       const pdftoppm = spawn(PDFTOPPM_PATH, [
         "-png",
-        "-r", "150", // 降低 DPI 以節省記憶體和處理時間
+        "-r", "300", // 提高 DPI 以改善表格辨識準確度（特別是密集表格）
         pdfPath,
         outputPrefix
       ], {

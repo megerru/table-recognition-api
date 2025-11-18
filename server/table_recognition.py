@@ -81,19 +81,28 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
     """
     results = []
     
-    # 初始化 OCR 引擎
+    # 初始化 OCR 引擎（調整參數以改善表格文字檢測）
     try:
-        ocr_engine = RapidOCR()
+        ocr_engine = RapidOCR(
+            det_limit_side_len=1920,   # 提高解析度限制（預設 960）
+            det_db_thresh=0.25,        # 降低閾值，檢測更多文字區域（預設 0.3）
+            use_angle_cls=True,        # 啟用方向校正
+        )
     except Exception as e:
         return {
             "success": False,
             "error": f"初始化 OCR 引擎失敗: {str(e)}"
         }
     
-    # 初始化表格识别引擎
+    # 初始化表格识别引擎（調整參數以改善密集表格的欄位檢測）
     try:
         lineless_engine = LinelessTableRecognition(LinelessTableInput())
-        wired_engine = WiredTableRecognition(WiredTableInput())
+
+        # 調整有線表格識別參數
+        wired_input = WiredTableInput()
+        wired_input.col_threshold = 10     # 降低列對齊閾值（預設 15）
+        wired_input.row_threshold = 8      # 降低行對齊閾值（預設 10）
+        wired_engine = WiredTableRecognition(wired_input)
     except Exception as e:
         return {
             "success": False,
