@@ -328,17 +328,18 @@ export default function Home() {
           )}
 
           {/* 框選區域界面 */}
-          {previewData && processingStatus.status === "completed" && !recognizeRegionsMutation.isPending && (
+          {previewData && processingStatus.status === "completed" && (
             <div className="animate-in fade-in-50 duration-500">
               <RegionSelector
                 images={previewData.images}
                 onConfirm={handleRegionConfirm}
                 onCancel={handleRegionCancel}
+                isLoading={recognizeRegionsMutation.isPending}
               />
             </div>
           )}
 
-          {recognizedTables.length > 0 && processingStatus.status === "completed" && (
+          {recognizedTables.length > 0 && processingStatus.status === "completed" && !previewData && (
             <div className="space-y-8 animate-in fade-in-50 duration-500">
               {/* 全局統計面板 */}
               {globalStats && (

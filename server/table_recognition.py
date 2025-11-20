@@ -233,11 +233,12 @@ def smart_split_cell(text: str) -> List[str]:
         return [text]
     
     # 方法1：使用多個空格分割（最常見的情況）
-    if '  ' in text:  # 至少 2 個空格
-        parts = re.split(r'\s{2,}', text)
+    # 提高閾值到 4 個空格，避免與 TableStructureRec 的優化參數衝突
+    if '    ' in text:  # 至少 4 個空格
+        parts = re.split(r'\s{4,}', text)
         cleaned_parts = [p.strip() for p in parts if p.strip()]
         if len(cleaned_parts) > 1:
-            print(f"🔍 使用空格分割: '{text[:50]}...' -> {len(cleaned_parts)} 列", file=sys.stderr)
+            print(f"🔍 使用空格分割 (4+ 空格): '{text[:50]}...' -> {len(cleaned_parts)} 列", file=sys.stderr)
             return cleaned_parts
     
     # 方法2：檢測單個空格，但要確保前後都是內容（更激進的分割）

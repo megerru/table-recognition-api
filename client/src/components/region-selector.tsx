@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { X, Check } from "lucide-react";
+import { X, Check, Loader2 } from "lucide-react";
 
 interface Region {
   id: string;
@@ -27,9 +27,10 @@ interface RegionSelectorProps {
   images: ImageInfo[];
   onConfirm: (regions: Region[]) => void;
   onCancel: () => void;
+  isLoading?: boolean;
 }
 
-export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorProps) {
+export function RegionSelector({ images, onConfirm, onCancel, isLoading = false }: RegionSelectorProps) {
   const [currentPage, setCurrentPage] = useState(0);
   const [regions, setRegions] = useState<Region[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -441,17 +442,27 @@ export function RegionSelector({ images, onConfirm, onCancel }: RegionSelectorPr
           <Button
             variant="outline"
             onClick={onCancel}
+            disabled={isLoading}
             data-testid="button-cancel-selection"
           >
             取消
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={regions.length === 0}
+            disabled={regions.length === 0 || isLoading}
             data-testid="button-confirm-selection"
           >
-            <Check className="w-4 h-4 mr-2" />
-            確認識別 ({regions.length} 個區域)
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                辨識中...
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4 mr-2" />
+                確認識別 ({regions.length} 個區域)
+              </>
+            )}
           </Button>
         </div>
       </CardContent>
