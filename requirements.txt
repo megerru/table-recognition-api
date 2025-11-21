@@ -1,0 +1,16 @@
+# 表格辨識 API - Python 依賴（Linus 式極簡）
+# 從 96 個 npm 套件降到 7 個 Python 套件
+
+# Web 框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# 圖片處理
+pillow>=10.0.0
+pdf2image>=1.16.0
+
+# 表格識別引擎
+lineless-table-rec>=0.0.9
+wired-table-rec>=0.0.7
+rapidocr-onnxruntime>=1.3.0

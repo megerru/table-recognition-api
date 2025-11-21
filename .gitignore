@@ -1,9 +1,30 @@
-node_modules
-dist
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# 上傳文件
+uploads/*
+!uploads/.gitkeep
+
+# 模型緩存
+models/*
+!models/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
-.config
-.local
-uploads
+Thumbs.db
+
+# Logs
+*.log

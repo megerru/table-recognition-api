@@ -1,11 +1,10 @@
-# Stage 1: Base image with system dependencies
-FROM node:20-slim AS base
+# Linus 式極簡 Dockerfile
+# 從 5 個 stage 降到 1 個 stage
 
-# Install system dependencies
+FROM python:3.11-slim
+
+# 安裝系統依賴（PDF 轉換需要 poppler-utils）
 RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    python3-venv \
     poppler-utils \
     libgomp1 \
     libglib2.0-0 \
@@ -17,97 +16,34 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Stage 2: Install dependencies
-FROM base AS deps
+# 複製 Python 依賴文件
+COPY requirements.txt .
 
-# Copy package files
-COPY package*.json ./
+# 安裝 Python 依賴
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Node.js dependencies
-RUN npm ci --only=production
+# 預載入 ONNX 模型（避免首次請求慢）
+RUN python -c "from lineless_table_rec.main import LinelessTableRecognition, LinelessTableInput; LinelessTableRecognition(LinelessTableInput())" || true
+RUN python -c "from wired_table_rec.main import WiredTableRecognition, WiredTableInput; WiredTableRecognition(WiredTableInput())" || true
+RUN python -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()" || true
 
-# Stage 3: Build the application
-FROM base AS builder
+# 複製應用代碼
+COPY main.py .
+COPY static/ ./static/
 
-# Copy package files
-COPY package*.json ./
+# 創建目錄
+RUN mkdir -p uploads models
 
-# Install ALL dependencies (including dev deps for building)
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Build the application
-RUN npm run build
-
-# Stage 4: Install Python dependencies and preload models
-FROM base AS python-deps
-
-# Copy Python requirements
-COPY pyproject.toml ./
-
-# Install Python dependencies
-RUN pip3 install --no-cache-dir --break-system-packages \
-    lineless-table-rec>=0.0.9 \
-    wired-table-rec>=0.0.7 \
-    rapidocr-onnxruntime>=1.3.0 \
-    Pillow>=10.0.0 \
-    onnxruntime>=1.16.0 \
-    numpy>=1.24.0 \
-    opencv-python-headless>=4.8.0 \
-    pyclipper>=1.3.0
-
-# Preload ONNX models to avoid runtime downloads
-# This will cache the models in the image
-RUN python3 -c "from lineless_table_rec.main import LinelessTableRecognition, LinelessTableInput; LinelessTableRecognition(LinelessTableInput())" || true
-RUN python3 -c "from wired_table_rec.main import WiredTableRecognition, WiredTableInput; WiredTableRecognition(WiredTableInput())" || true
-RUN python3 -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()" || true
-
-# Stage 5: Production image
-FROM base AS production
-
-# Install Python dependencies directly in production stage
-RUN pip3 install --no-cache-dir --break-system-packages \
-    lineless-table-rec>=0.0.9 \
-    wired-table-rec>=0.0.7 \
-    rapidocr-onnxruntime>=1.3.0 \
-    Pillow>=10.0.0 \
-    onnxruntime>=1.16.0 \
-    numpy>=1.24.0 \
-    opencv-python-headless>=4.8.0 \
-    pyclipper>=1.3.0
-
-# Preload ONNX models in production stage
-RUN python3 -c "from lineless_table_rec.main import LinelessTableRecognition, LinelessTableInput; LinelessTableRecognition(LinelessTableInput())" || true
-RUN python3 -c "from wired_table_rec.main import WiredTableRecognition, WiredTableInput; WiredTableRecognition(WiredTableInput())" || true
-RUN python3 -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()" || true
-
-# Copy Node.js dependencies
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy built application (includes both backend bundles and frontend in public/)
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
-
-# Copy server scripts (Python scripts not bundled by esbuild)
-COPY --from=builder /app/server/table_recognition.py ./server/table_recognition.py
-COPY --from=builder /app/server/crop_image.py ./server/crop_image.py
-
-# Create uploads directory
-RUN mkdir -p uploads/images
-
-# Set environment variables
-ENV NODE_ENV=production
+# 環境變數
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 
-# Expose port
+# 暴露端口
 EXPOSE 8080
 
-# Health check
+# 健康檢查
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:8080/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health').read()"
 
-# Start the application
-CMD ["node", "dist/index.js"]
+# 啟動應用
+CMD ["python", "main.py"]

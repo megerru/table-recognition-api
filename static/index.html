@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>表格辨識 - Linus 式極簡版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Canvas 選取框樣式 */
+        #preview-canvas {
+            cursor: crosshair;
+            border: 2px solid #3b82f6;
+            max-width: 100%;
+        }
+
+        .selection-box {
+            position: absolute;
+            border: 2px dashed #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            pointer-events: none;
+        }
+
+        /* 表格樣式 */
+        .result-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .result-table th,
+        .result-table td {
+            border: 1px solid #e5e7eb;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .result-table th {
+            background: #f3f4f6;
+            font-weight: 600;
+        }
+
+        .result-table tr:hover {
+            background: #f9fafb;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">表格辨識</h1>
+            <p class="text-gray-600">Linus 式極簡架構 - 零框架，純 HTML + Python</p>
+        </header>
+
+        <!-- 步驟 1: 上傳文件 -->
+        <section id="upload-section" class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-2xl font-semibold mb-4">步驟 1: 上傳文件</h2>
+
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition">
+                <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
+                <label for="file-input" class="cursor-pointer">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-600">
+                        點擊選擇文件或拖放到這裡
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        支援 PDF, PNG, JPG (最大 10MB)
+                    </p>
+                </label>
+            </div>
+
+            <div id="upload-status" class="mt-4 hidden">
+                <div class="flex items-center text-blue-600">
+                    <svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    上傳中...
+                </div>
+            </div>
+        </section>
+
+        <!-- 步驟 2: 預覽並框選 -->
+        <section id="preview-section" class="bg-white rounded-lg shadow p-6 mb-6 hidden">
+            <h2 class="text-2xl font-semibold mb-4">步驟 2: 框選表格區域</h2>
+
+            <div class="mb-4 flex gap-4">
+                <select id="table-type" class="px-4 py-2 border rounded-lg">
+                    <option value="auto">自動判斷</option>
+                    <option value="wired">有線表格</option>
+                    <option value="lineless">無線表格</option>
+                </select>
+
+                <button id="recognize-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    開始識別
+                </button>
+
+                <button id="reset-selection" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+                    重置選取
+                </button>
+            </div>
+
+            <div class="relative inline-block">
+                <canvas id="preview-canvas"></canvas>
+                <div id="selection-box" class="selection-box hidden"></div>
+            </div>
+
+            <p class="text-sm text-gray-600 mt-4">
+                💡 提示：在圖片上拖曳滑鼠框選表格區域，或直接點擊「開始識別」處理整張圖片
+            </p>
+        </section>
+
+        <!-- 步驟 3: 顯示結果 -->
+        <section id="result-section" class="bg-white rounded-lg shadow p-6 hidden">
+            <h2 class="text-2xl font-semibold mb-4">步驟 3: 識別結果</h2>
+
+            <div class="mb-4 flex gap-4">
+                <button id="copy-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                    📋 複製為 CSV
+                </button>
+
+                <button id="download-btn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                    📥 下載 CSV
+                </button>
+
+                <button id="new-upload-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+                    📤 上傳新文件
+                </button>
+            </div>
+
+            <div id="result-container" class="overflow-x-auto">
+                <!-- 表格結果將插入這裡 -->
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

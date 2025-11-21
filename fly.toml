@@ -1,39 +1,26 @@
-# fly.toml app configuration file generated for table-recognition-api on 2025-11-04T09:48:21+08:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# Fly.io 配置 - Linus 式極簡版
 
-app = 'table-recognition-api'
-primary_region = 'nrt'
+app = "table-recognition-api"
+primary_region = "nrt"  # 東京機房
 
 [build]
-
-[env]
-  NODE_ENV = 'production'
-  PORT = '8080'
-
-[[mounts]]
-  source = 'table_uploads'
-  destination = '/app/uploads'
-  initial_size = '1gb'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
-
-  # Temporarily disable health checks to allow slow startup
-  # [[http_service.checks]]
-  #   interval = '30s'
-  #   timeout = '10s'
-  #   grace_period = '60s'
-  #   method = 'GET'
-  #   path = '/api/health'
+  min_machines_running = 0  # 閒置時完全停止（省錢）
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
+  memory = "1gb"  # 降低到 1GB（從 2GB）
+  cpu_kind = "shared"
   cpus = 1
+
+# 健康檢查
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "10s"
+  grace_period = "60s"
+  method = "GET"
+  path = "/api/health"
