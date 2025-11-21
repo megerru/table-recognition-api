@@ -145,28 +145,41 @@ async function recognizeTables(imagePaths: string[]): Promise<TableRecognitionRe
 
       python.stderr.on("data", (data) => {
         const stderrText = data.toString();
-        stderr += stderrText;
-        // 即時顯示處理信息（旋轉、預處理等）
-        console.log(stderrText.trim());
+        // 只記錄到控制台供開發者調試，不收集到 stderr 變數
+        // 因為 Python 的 stderr 包含 DEBUG 日誌、ANSI codes，不應返回給用戶
+        console.error("[Python Debug]", stderrText.trim());
       });
 
       python.on("close", (code) => {
+        // Python 腳本總是在 stdout 返回 JSON（成功或失敗）
+        // code !== 0 通常是 OOM kill 或 timeout，給用戶友好的錯誤訊息
+
         if (code !== 0) {
-          console.error("Python 错误:", stderr);
-          reject(new Error(`表格識別失敗: ${stderr || "未知錯誤"}`));
+          console.error(`Python 進程異常退出，code: ${code}`);
+
+          // 特殊處理 OOM kill (exit code 137 or killed by signal)
+          if (code === 137 || code === null) {
+            reject(new Error("記憶體不足，請嘗試縮小識別區域或使用更小的文件"));
+            return;
+          }
+
+          // 其他錯誤
+          reject(new Error("表格識別處理失敗，請稍後重試"));
           return;
         }
 
+        // 正常退出，解析 JSON 結果
         try {
           const result = JSON.parse(stdout);
           if (result.success) {
             resolve(result.tables || []);
           } else {
+            // 這才是來自 Python 的真實錯誤（結構化）
             reject(new Error(result.error || "識別失敗"));
           }
         } catch (error) {
-          console.error("解析 JSON 错误:", error, "输出:", stdout);
-          reject(new Error("解析識別結果失敗"));
+          console.error("解析 JSON 錯誤:", error, "輸出:", stdout);
+          reject(new Error("解析識別結果失敗，請檢查文件格式"));
         }
       });
 

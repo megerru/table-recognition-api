@@ -22,36 +22,6 @@ except ImportError as e:
     }, ensure_ascii=False))
     sys.exit(1)
 
-# 全局引擎實例（只初始化一次，節省記憶體）
-_ocr_engine = None
-_lineless_engine = None
-_wired_engine = None
-
-def get_ocr_engine():
-    """獲取 OCR 引擎單例"""
-    global _ocr_engine
-    if _ocr_engine is None:
-        print("初始化 OCR 引擎（第一次）...", file=sys.stderr)
-        _ocr_engine = RapidOCR(
-            det_limit_side_len=1920,
-            det_db_thresh=0.25,
-            use_angle_cls=True,
-        )
-    return _ocr_engine
-
-def get_table_engines():
-    """獲取表格識別引擎單例"""
-    global _lineless_engine, _wired_engine
-    if _lineless_engine is None or _wired_engine is None:
-        print("初始化表格識別引擎（第一次）...", file=sys.stderr)
-        _lineless_engine = LinelessTableRecognition(LinelessTableInput())
-
-        wired_input = WiredTableInput()
-        wired_input.col_threshold = 10
-        wired_input.row_threshold = 8
-        _wired_engine = WiredTableRecognition(wired_input)
-    return _lineless_engine, _wired_engine
-
 
 def preprocess_image(img_path: str) -> str:
     """
@@ -111,14 +81,32 @@ def recognize_tables_from_images(image_paths: List[str]) -> dict:
     """
     results = []
 
-    # 使用全局單例引擎（節省記憶體）
+    # 初始化 OCR 引擎（每次請求重新初始化，避免 OOM）
     try:
-        ocr_engine = get_ocr_engine()
-        lineless_engine, wired_engine = get_table_engines()
+        ocr_engine = RapidOCR(
+            det_limit_side_len=1920,   # 提高解析度限制（預設 960）
+            det_db_thresh=0.25,        # 降低閾值，檢測更多文字區域（預設 0.3）
+            use_angle_cls=True,        # 啟用方向校正
+        )
     except Exception as e:
         return {
             "success": False,
-            "error": f"初始化引擎失敗: {str(e)}"
+            "error": f"初始化 OCR 引擎失敗: {str(e)}"
+        }
+
+    # 初始化表格识别引擎（調整參數以改善密集表格的欄位檢測）
+    try:
+        lineless_engine = LinelessTableRecognition(LinelessTableInput())
+
+        # 調整有線表格識別參數
+        wired_input = WiredTableInput()
+        wired_input.col_threshold = 10     # 降低列對齊閾值（預設 15）
+        wired_input.row_threshold = 8      # 降低行對齊閾值（預設 10）
+        wired_engine = WiredTableRecognition(wired_input)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"初始化表格識別引擎失敗: {str(e)}"
         }
     
     table_index = 0
