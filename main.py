@@ -106,17 +106,30 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
         # 初始化 OCR 引擎
         ocr_engine = RapidOCR()
 
+        
+        # 執行 OCR 並驗證結果
+        ocr_result = ocr_engine(str(image_path))
+        
+        # 驗證並過濾 OCR 結果（防止 lineless_table_rec 崩潰）
+        if ocr_result:
+            ocr_result = [
+                item for item in ocr_result
+                if item and len(item) >= 3 and isinstance(item[0], (list, tuple)) and len(item[0]) == 4
+            ]
+        
+        if not ocr_result:
+            return {"success": False, "tables": [], "type": table_type, "error": "OCR 未檢測到有效文字"}
         # 根據類型選擇引擎
         if table_type == "wired":
             wired_input = WiredTableInput()
             wired_input.col_threshold = 10
             wired_input.row_threshold = 8
             engine = WiredTableRecognition(wired_input)
-            result, _ = engine(str(image_path), ocr_result=ocr_engine(str(image_path)))
+            result, _ = engine(str(image_path), ocr_result=ocr_result)
 
         elif table_type == "lineless":
             engine = LinelessTableRecognition(LinelessTableInput())
-            result, _ = engine(str(image_path), ocr_result=ocr_engine(str(image_path)))
+            result, _ = engine(str(image_path), ocr_result=ocr_result)
 
         else:  # auto - 嘗試兩種引擎
             # 先嘗試有線表格
@@ -125,7 +138,7 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
                 wired_input.col_threshold = 10
                 wired_input.row_threshold = 8
                 wired_engine = WiredTableRecognition(wired_input)
-                ocr_result = ocr_engine(str(image_path))
+
                 result, _ = wired_engine(str(image_path), ocr_result=ocr_result)
 
                 # 如果有線表格識別成功，返回結果
@@ -136,7 +149,7 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
 
             # 否則嘗試無線表格
             lineless_engine = LinelessTableRecognition(LinelessTableInput())
-            ocr_result = ocr_engine(str(image_path))
+
             result, _ = lineless_engine(str(image_path), ocr_result=ocr_result)
             return {"success": True, "tables": result, "type": "lineless"}
 
