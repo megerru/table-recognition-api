@@ -111,36 +111,36 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
         ocr_result = ocr_engine(str(image_path))
         
         # 驗證並過濾 OCR 結果（防止 lineless_table_rec 崩潰）
-#         if ocr_result:
-#             validated_results = []
-#             for item in ocr_result:
-#                 # 檢查基本結構：[box, text, confidence]
-#                 if not item or len(item) < 3:
-#                     continue
-#                 
-#                 box = item[0]
-#                 # box 必須是 list/tuple 且有4個點
-#                 if not isinstance(box, (list, tuple)) or len(box) != 4:
-#                     continue
-#                 
-#                 # 每個點必須是 [x, y] 格式
-#                 valid_box = True
-#                 for point in box:
-#                     if not isinstance(point, (list, tuple)) or len(point) != 2:
-#                         valid_box = False
-#                         break
-#                     # 確保 x, y 是數字
-#                     try:
-#                         float(point[0])
-#                         float(point[1])
-#                     except (TypeError, ValueError):
-#                         valid_box = False
-#                         break
-#                 
-#                 if valid_box:
-#                     validated_results.append(item)
-#             
-#             ocr_result = validated_results
+# #         if ocr_result:
+# #             validated_results = []
+# #             for item in ocr_result:
+# #                 # 檢查基本結構：[box, text, confidence]
+# #                 if not item or len(item) < 3:
+# #                     continue
+# #                 
+# #                 box = item[0]
+# #                 # box 必須是 list/tuple 且有4個點
+# #                 if not isinstance(box, (list, tuple)) or len(box) != 4:
+# #                     continue
+# #                 
+# #                 # 每個點必須是 [x, y] 格式
+# #                 valid_box = True
+# #                 for point in box:
+# #                     if not isinstance(point, (list, tuple)) or len(point) != 2:
+# #                         valid_box = False
+# #                         break
+# #                     # 確保 x, y 是數字
+# #                     try:
+# #                         float(point[0])
+# #                         float(point[1])
+# #                     except (TypeError, ValueError):
+# #                         valid_box = False
+# #                         break
+# #                 
+# #                 if valid_box:
+# #                     validated_results.append(item)
+# #             
+# #             ocr_result = validated_results
         
         if not ocr_result:
             return {"success": False, "tables": [], "type": table_type, "error": "OCR 未檢測到有效文字"}
@@ -150,11 +150,13 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
             wired_input.col_threshold = 10
             wired_input.row_threshold = 8
             engine = WiredTableRecognition(wired_input)
-            result, _ = engine(str(image_path), ocr_result=ocr_result)
+            output = engine(str(image_path), ocr_result=ocr_result)
+            result = output.html_table if hasattr(output, "html_table") else output
 
         elif table_type == "lineless":
             engine = LinelessTableRecognition(LinelessTableInput())
-            result, _ = engine(str(image_path), ocr_result=ocr_result)
+            output = engine(str(image_path), ocr_result=ocr_result)
+            result = output.html_table if hasattr(output, "html_table") else output
 
         else:  # auto - 嘗試兩種引擎
             # 先嘗試有線表格
@@ -164,7 +166,8 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
                 wired_input.row_threshold = 8
                 wired_engine = WiredTableRecognition(wired_input)
 
-                result, _ = wired_engine(str(image_path), ocr_result=ocr_result)
+                output = wired_engine(str(image_path), ocr_result=ocr_result)
+                result = output.html_table if hasattr(output, "html_table") else output
 
                 # 如果有線表格識別成功，返回結果
                 if result and len(result) > 0:
@@ -175,7 +178,8 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
             # 否則嘗試無線表格
             lineless_engine = LinelessTableRecognition(LinelessTableInput())
 
-            result, _ = lineless_engine(str(image_path), ocr_result=ocr_result)
+            output = lineless_engine(str(image_path), ocr_result=ocr_result)
+            result = output.html_table if hasattr(output, "html_table") else output
             return {"success": True, "tables": result, "type": "lineless"}
 
         return {"success": True, "tables": result, "type": table_type}
