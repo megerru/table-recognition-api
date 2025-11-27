@@ -150,12 +150,12 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
             wired_input.col_threshold = 10
             wired_input.row_threshold = 8
             engine = WiredTableRecognition(wired_input)
-            output = engine(str(image_path), ocr_result=ocr_result)
+            output = engine(str(image_path))
             result = output.html_table if hasattr(output, "html_table") else output
 
         elif table_type == "lineless":
             engine = LinelessTableRecognition(LinelessTableInput())
-            output = engine(str(image_path), ocr_result=ocr_result)
+            output = engine(str(image_path))
             result = output.html_table if hasattr(output, "html_table") else output
 
         else:  # auto - 嘗試兩種引擎
@@ -166,7 +166,7 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
                 wired_input.row_threshold = 8
                 wired_engine = WiredTableRecognition(wired_input)
 
-                output = wired_engine(str(image_path), ocr_result=ocr_result)
+                output = wired_engine(str(image_path))
                 result = output.html_table if hasattr(output, "html_table") else output
 
                 # 如果有線表格識別成功，返回結果
@@ -178,7 +178,7 @@ def recognize_table(image_path: Path, table_type: str = "auto") -> dict:
             # 否則嘗試無線表格
             lineless_engine = LinelessTableRecognition(LinelessTableInput())
 
-            output = lineless_engine(str(image_path), ocr_result=ocr_result)
+            output = lineless_engine(str(image_path))
             result = output.html_table if hasattr(output, "html_table") else output
             return {"success": True, "tables": result, "type": "lineless"}
 
